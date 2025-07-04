@@ -19,7 +19,7 @@ def load_all_json_data(folder_path="/app/storage/datasets/default") -> list[dict
 
     return data_list
 
-from crawlee import ConcurrencySettings, Request, Configuration
+from crawlee import ConcurrencySettings, Request, configuration
 from crawlee.crawlers import PlaywrightCrawler
 
 from routes import router
@@ -29,7 +29,7 @@ async def crawl_links_tiktok(url: str) -> None:
 
     max_items = 5
     
-    config = Configuration(storage_dir='/app/storage')
+    config = configuration(storage_dir='/app/storage')
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
