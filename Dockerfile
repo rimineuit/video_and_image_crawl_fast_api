@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y \
     libxi6 \
     libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/* && \
-    playwright install --with-deps
+    playwright install --with-deps chromium firefox webkit
 
 ENV PORT=8000
 
