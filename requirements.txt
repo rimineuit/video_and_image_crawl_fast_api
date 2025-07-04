@@ -1,11 +1,7 @@
-# Web framework
-streamlit
-
-# Web scraping
+ # Web scraping
 requests
 beautifulsoup4
 playwright
-crawl4ai
 
 # Async support
 asyncpg
@@ -14,19 +10,10 @@ asyncio
 # Env + config
 python-dotenv
 
-# Timezone
-pytz
-tzdata  # dùng nếu chạy trên Alpine hoặc server không có zoneinfo
 
-# Data handling
-pandas
 
-# Utility
-glob2  # nếu anh dùng glob nâng cao
 
 # Optional (nếu dùng các tính năng nâng cao của crawl4ai)
-lxml
-nest_asyncio
 uvicorn
 fastapi
 yt-dlp
