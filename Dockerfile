@@ -9,7 +9,7 @@ RUN pip install -r requirements.txt
 
 # Cài thêm Crawlee và Playwright
 RUN python -m pip install 'crawlee[all]'
-RUN python -m playwright install --with-deps
+RUN playwright install
 
 ENV PORT=8000
 # Lệnh chạy ứng dụng (dùng uvicorn)

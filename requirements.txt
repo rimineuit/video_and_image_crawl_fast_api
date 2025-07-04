@@ -10,9 +10,6 @@ asyncio
 # Env + config
 python-dotenv
 
-
-
-
 # Optional (nếu dùng các tính năng nâng cao của crawl4ai)
 uvicorn
 fastapi

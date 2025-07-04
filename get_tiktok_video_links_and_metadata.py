@@ -4,7 +4,7 @@ from datetime import timedelta
 import os
 import json
 
-def load_all_json_data(folder_path="./storage/datasets/default") -> list[dict]:
+def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
     data_list = []
 
     for filename in os.listdir(folder_path):
