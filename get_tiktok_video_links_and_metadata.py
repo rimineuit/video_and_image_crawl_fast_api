@@ -4,7 +4,7 @@ from datetime import timedelta
 import os
 import json
 
-def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
+def load_all_json_data(folder_path="/app/storage/datasets/default") -> list[dict]:
     data_list = []
 
     for filename in os.listdir(folder_path):
@@ -19,7 +19,7 @@ def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
 
     return data_list
 
-from crawlee import ConcurrencySettings, Request
+from crawlee import ConcurrencySettings, Request, Configuration
 from crawlee.crawlers import PlaywrightCrawler
 
 from routes import router
@@ -28,9 +28,12 @@ async def crawl_links_tiktok(url: str) -> None:
     """The crawler entry point."""
 
     max_items = 5
+    
+    config = Configuration(storage_dir='/app/storage')
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
+        configuration=config,
         # Limit scraping intensity by setting a limit on requests per minute
         concurrency_settings=ConcurrencySettings(max_concurrency=1),
         # We'll configure the `router` in the next step
