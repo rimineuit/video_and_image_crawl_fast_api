@@ -36,7 +36,7 @@ async def default_handler(context: PlaywrightCrawlingContext) -> None:
         raise ValueError('`limit` must be a positive integer')
     
     # Chờ nội dung đầu tiên hoặc nút load-more
-    await context.page.locator('[data-e2e="user-post-item"], main button').first.wait_for()
+    await context.page.locator('[data-e2e="user-post-item"], main button').first.wait_for(timeout=30000)
     
     # Nếu có nút load-more thì click
     btn = await context.page.query_selector('main button')
@@ -101,7 +101,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
     comments = set()
     previous = 0
     while len(comments) < MAX_COMMENTS:
-        await context.page.wait_for_selector('span[data-e2e="comment-level-1"] p', timeout=10000)
+        await context.page.wait_for_selector('span[data-e2e="comment-level-1"] p', timeout=30000)
         await asyncio.sleep(1)
         els = await context.page.query_selector_all('span[data-e2e="comment-level-1"] p')
         for c in els:

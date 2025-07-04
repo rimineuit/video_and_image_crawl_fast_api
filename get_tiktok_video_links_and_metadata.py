@@ -39,7 +39,7 @@ async def crawl_links_tiktok(url: str) -> None:
         headless=True,
         max_requests_per_crawl=50,
         # Increase the timeout for the request handling pipeline
-        request_handler_timeout=timedelta(seconds=50),
+        request_handler_timeout=timedelta(seconds=90),
         browser_type='firefox',  # or 'chromium' or 'webkit'
         # Limit any permissions to device data
         browser_new_context_options={'permissions': [],
