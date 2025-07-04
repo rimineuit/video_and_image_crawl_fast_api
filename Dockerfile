@@ -1,16 +1,15 @@
 FROM python:3.12
 
-
 # Thiết lập thư mục làm việc
 WORKDIR /app
 COPY . /app
 # Cập nhật pip và setuptools
-RUN pip install -U pip setuptools
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Cài thêm Crawlee và Playwright
-RUN pip install 'crawlee[all]'
-RUN playwright install --with-deps
+RUN python -m pip install 'crawlee[all]'
+RUN python -m playwright install --with-deps
 
 ENV PORT=8000
 # Lệnh chạy ứng dụng (dùng uvicorn)
