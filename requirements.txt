@@ -1,0 +1,5 @@
+
+pipx
+routes
+uvicorn
+fastapi
