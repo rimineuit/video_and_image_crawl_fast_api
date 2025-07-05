@@ -113,12 +113,14 @@ async def image_upload(body: ImageBody):
 
 class TikTokBody(BaseModel):
     url: str
+    browser_type: str = "firefox"  # Mặc định là Firefox, có thể thay đổi
     
 @app.post("/tiktok/get_video_links_and_metadata")
 async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     clean_url = body.url.strip().rstrip(';')
+    browser_type = body.browser_type.strip().lower()
     script_path = "get_tiktok_video_links_and_metadata.py"
-    cmd = [sys.executable, script_path, clean_url]
+    cmd = [sys.executable, script_path, clean_url, browser_type]
     try:
         proc = subprocess.run(
             cmd,

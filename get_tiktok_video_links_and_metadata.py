@@ -24,7 +24,7 @@ from crawlee.crawlers import PlaywrightCrawler
 
 from routes import router
 
-async def crawl_links_tiktok(url: str) -> None:
+async def crawl_links_tiktok(url: str, browser_type: str) -> None:
     """The crawler entry point."""
 
     max_items = 5
@@ -40,7 +40,7 @@ async def crawl_links_tiktok(url: str) -> None:
         max_requests_per_crawl=50,
         # Increase the timeout for the request handling pipeline
         request_handler_timeout=timedelta(seconds=90),
-        browser_type='chromium',  # or 'chromium' or 'webkit'
+        browser_type=browser_type,  # or 'chromium' or 'webkit'
         # Limit any permissions to device data
         browser_new_context_options={'permissions': [],
                                      'viewport': {'width': 1280, 'height': 800},},
@@ -61,7 +61,8 @@ if __name__ == '__main__':
         sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <TikTok_URL>")
          
     tiktok_url = sys.argv[1].strip()
-    asyncio.run(crawl_links_tiktok(tiktok_url))
+    web = sys.argv[2].strip() if len(sys.argv) > 2 else "firefox"
+    asyncio.run(crawl_links_tiktok(tiktok_url, web))
     result = load_all_json_data()
     # Print the result in a pretty JSON format
     print("Result:")
