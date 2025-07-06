@@ -1,13 +1,9 @@
-FROM python:3.12
+FROM python:3.12-slim
 
-WORKDIR /app
-COPY . /app
-
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    python -m pip install 'crawlee[playwright]'
-RUN python -m playwright install 
-RUN apt-get update && apt-get install -y \
+# Cài đặt thư viện hệ thống cần thiết cho Playwright trước
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gnupg \
     libnss3 \
     libxss1 \
     libasound2 \
@@ -21,10 +17,26 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 \
     libgdk-pixbuf2.0-0 \
     libatk1.0-0 \
-    libdbus-1-3 \
-    --no-install-recommends && \
+    libdbus-1-3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Tạo thư mục làm việc
+WORKDIR /app
+
+# Copy file requirements trước để tận dụng cache
+COPY requirements.txt .
+
+# Cài đặt Python packages
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
+    pip install 'crawlee[playwright]'
+
+# Cài đặt Playwright và các trình duyệt liên quan
+RUN python -m playwright install && \
+    python -m playwright install-deps
+
+# Copy toàn bộ mã nguồn
+COPY . .
 
 ENV PORT=8000
 
