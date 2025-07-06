@@ -29,37 +29,49 @@ async def extract_video_links(page: Page) -> list[Request]:
 async def default_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.url
     context.log.info(f'Start profile crawl: {url}')
-    
+
     # Lấy giới hạn số video cần crawl
     limit = context.request.user_data.get('limit', 10)
     if not isinstance(limit, int) or limit <= 0:
         raise ValueError('`limit` must be a positive integer')
-    
-    # Chờ nội dung đầu tiên hoặc nút load-more
+
+    # Đợi user-post hoặc nút load-more hiển thị
     await context.page.locator('[data-e2e="user-post-item"], main button').first.wait_for(timeout=30000)
-    
-    # Nếu có nút load-more thì click
+
+    # Click vào nút load-more nếu có
     btn = await context.page.query_selector('main button')
     if btn:
         await btn.click()
-    
-    # Bắt đầu scroll bất đồng bộ
-    scroll_task = asyncio.create_task(context.infinite_scroll())
-    
-    # Trong khi chưa đạt limit, tiếp tục lấy link, ngược lại hủy scroll
-    while not scroll_task.done():
+
+    collected = set()
+    retries = 0
+    MAX_RETRIES = 10
+
+    while len(collected) < limit and retries < MAX_RETRIES:
         links = await extract_video_links(context.page)
-        if len(links) >= limit:
-            scroll_task.cancel()
+        for req in links:
+            collected.add(req.url)
+
+        context.log.info(f'Found {len(collected)} video links so far...')
+
+        if len(collected) >= limit:
             break
-        await asyncio.sleep(0.2)
-    
-    # Thêm request cho bước video handler
-    to_add = (await extract_video_links(context.page))[:limit]
-    if not to_add:
+
+        # Scroll xuống và chờ load thêm nội dung
+        await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
+        await asyncio.sleep(1)  # Chờ nội dung load xong
+
+        retries += 1
+
+    # Tạo danh sách request từ collected
+    final_links = [Request.from_url(url, label='video', user_data={'url': url}) for url in list(collected)[:limit]]
+    if not final_links:
         raise RuntimeError('No video links found on profile page')
-    await context.add_requests(to_add)
-    context.log.info(f'Queued {len(to_add)} video requests')
+
+    await context.add_requests(final_links)
+    context.log.info(f'Queued {len(final_links)} video requests')
+
+
 
 # --- Handler xử lý từng video riêng lẻ ---
 @router.handler(label='video')
