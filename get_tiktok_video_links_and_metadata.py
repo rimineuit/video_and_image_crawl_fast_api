@@ -31,19 +31,24 @@ async def crawl_links_tiktok(url: str, browser_type: str) -> None:
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
-        # Limit scraping intensity by setting a limit on requests per minute
         concurrency_settings=ConcurrencySettings(max_concurrency=1),
-        # We'll configure the `router` in the next step
         request_handler=router,
-        # You can use `False` during development. But for production, it's always `True`
         headless=True,
         max_requests_per_crawl=50,
-        # Increase the timeout for the request handling pipeline
         request_handler_timeout=timedelta(seconds=90),
-        browser_type=browser_type,  # or 'chromium' or 'webkit'
-        # Limit any permissions to device data
-        browser_new_context_options={'permissions': [],
-                                     'viewport': {'width': 1280, 'height': 800},},
+        browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
+
+        browser_new_context_options={
+            'permissions': [],
+            'viewport': {'width': 1280, 'height': 800},
+        },
+
+        # 🔥 Thêm dòng này để tránh lỗi sandbox khi chạy với quyền root
+        launch_context={
+            "launch_options": {
+                "chromiumSandbox": False
+            }
+        },
     )
     
     # Run the crawler to collect data from several user pages
