@@ -37,17 +37,12 @@ async def crawl_links_tiktok(url: str, browser_type: str) -> None:
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=90),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
-
+        browser_launch_options={
+            "args": ["--no-sandbox"]
+        },
         browser_new_context_options={
             'permissions': [],
             'viewport': {'width': 1280, 'height': 800},
-        },
-
-        # 🔥 Thêm dòng này để tránh lỗi sandbox khi chạy với quyền root
-        launch_context={
-            "launch_options": {
-                "chromiumSandbox": False
-            }
         },
     )
     

@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12
 
 # Cài đặt thư viện hệ thống cần thiết cho Playwright trước
 RUN apt-get update && apt-get install -y --no-install-recommends \
