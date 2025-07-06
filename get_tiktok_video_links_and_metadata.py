@@ -36,7 +36,7 @@ async def crawl_links_tiktok(url: str, browser_type: str) -> None:
         # We'll configure the `router` in the next step
         request_handler=router,
         # You can use `False` during development. But for production, it's always `True`
-        headless=False,
+        headless=True,
         max_requests_per_crawl=50,
         # Increase the timeout for the request handling pipeline
         request_handler_timeout=timedelta(seconds=90),
