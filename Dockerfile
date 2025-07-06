@@ -5,7 +5,7 @@ COPY . /app
 
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
-    python -m pip install 'crawlee[all]'
+    python -m pip install 'crawlee[playwright]'
 RUN python -m playwright install 
 RUN apt-get update && apt-get install -y \
     libnss3 \
