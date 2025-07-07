@@ -1,20 +1,13 @@
-import os
-import json
+import ffmpeg
 
-def load_all_json_data(folder_path="./storage/datasets/default") -> list[dict]:
-    data_list = []
+input_file = r"E:\Test_crawlee\input.mp3"
+output_file = r"E:\Test_crawlee\output_cut.mp3"
 
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".json") and filename != "__metadata__.json":
-            file_path = os.path.join(folder_path, filename)
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    data_list.append(data)
-            except Exception as e:
-                print(f"Lỗi khi đọc file {filename}: {e}")
+# Thời gian: bắt đầu = 1 phút 30, kết thúc = 3 phút 45
+start_time = "00:01:30"
+duration = "00:02:15"  # 3:45 - 1:30 = 2 phút 15 giây
 
-    return data_list
+# Cắt đoạn và xuất file mới
+ffmpeg.input(input_file, ss=start_time, t=duration).output(output_file).run()
 
-data = load_all_json_data()
-print(json.dumps(data, indent=2, ensure_ascii=False))
+print("✅ Đã cắt và lưu file mới!")

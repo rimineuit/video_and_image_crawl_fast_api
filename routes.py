@@ -107,6 +107,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'comments': item_struct['stats']['commentCount'],
         'plays': item_struct['stats']['playCount'],
         'video_url': url,
+        'thumbnail': item_struct['video']['cover'],
     }
     
     # Crawl comment (tối đa MAX_COMMENTS)
