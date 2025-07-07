@@ -110,17 +110,23 @@ async def image_upload(body: ImageBody):
         )
 
     return result_json
+from typing import List
 
 class TikTokBody(BaseModel):
-    url: str
-    browser_type: str = "firefox"  # Mặc định là Firefox, có thể thay đổi
-    
+    urls: List[str]  # Danh sách các URL TikTok
+    browser_type: str = "firefox"  # Mặc định là Firefox
+    label: str = "newest"  # Nhãn mặc định
+
 @app.post("/tiktok/get_video_links_and_metadata")
 async def tiktok_get_video_links_and_metadata(body: TikTokBody):
-    clean_url = body.url.strip().rstrip(';')
+    label = body.label.strip().lower()
     browser_type = body.browser_type.strip().lower()
+
+    # Nối các URL thành một chuỗi cách nhau bởi dấu cách
+    clean_urls = ' '.join(url.strip().rstrip(';') for url in body.urls)
+
     script_path = "get_tiktok_video_links_and_metadata.py"
-    cmd = [sys.executable, script_path, clean_url, browser_type]
+    cmd = [sys.executable, script_path, browser_type, label] + clean_urls.split()
     try:
         proc = subprocess.run(
             cmd,

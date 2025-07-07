@@ -3,7 +3,8 @@
 from datetime import timedelta
 import os
 import json
-
+from typing import List
+# 
 def load_all_json_data(folder_path="/app/storage/datasets/default") -> list[dict]:
     data_list = []
 
@@ -24,16 +25,16 @@ from crawlee.crawlers import PlaywrightCrawler
 
 from routes import router
 
-async def crawl_links_tiktok(url: str, browser_type: str) -> None:
+async def crawl_links_tiktok(urls: List, browser_type: str, label: str) -> None:
     """The crawler entry point."""
 
-    max_items = 5
+    max_items = 20
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
         concurrency_settings=ConcurrencySettings(max_concurrency=1),
         request_handler=router,
-        headless=True,
+        headless=False,
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=90),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
@@ -47,24 +48,27 @@ async def crawl_links_tiktok(url: str, browser_type: str) -> None:
     )
     
     # Run the crawler to collect data from several user pages
+    print(urls)
     await crawler.run(
         [
-            Request.from_url(url, user_data={'limit': max_items}),
+            Request.from_url(url, user_data={'limit': max_items}, label=label) for url in urls
         ]
     )
     
 import sys
 import asyncio
-
+import json
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <TikTok_URL>")
+    if len(sys.argv) < 3:
+        sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <TikTok_URLs> ")
          
-    tiktok_url = sys.argv[1].strip()
-    web = sys.argv[2].strip() if len(sys.argv) > 2 else "firefox"
-    asyncio.run(crawl_links_tiktok(tiktok_url, web))
+    tiktok_urls = sys.argv[3:]
+    web = sys.argv[1].strip() if len(sys.argv) > 2 else "firefox"
+    label = sys.argv[2].strip() if len(sys.argv) > 3 else "newest"
+    asyncio.run(crawl_links_tiktok(tiktok_urls, web, label))
+    
     result = load_all_json_data()
     # Print the result in a pretty JSON format
     print("Result:")
     print(json.dumps(result, indent=2, ensure_ascii=False))
-    
+        

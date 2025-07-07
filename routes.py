@@ -27,21 +27,54 @@ router = Router[PlaywrightCrawlingContext]()
 MAX_COMMENTS = 50
 SCROLL_PAUSE_MS = 1000
 
-# --- Helper: extract video links from user page ---
-async def extract_video_links(page: Page) -> list[Request]:
-    links: list[Request] = []
-    elements = await page.query_selector_all('[data-e2e="user-post-item"] a')
-    for el in elements:
-        href = await el.get_attribute('href')
-        if href and '/video/' in href:
-            links.append(Request.from_url(
-                href, label='video', user_data={'url': href}
-            ))
-    return links
+import re
+
+def normalize_views(view_str: str) -> int:
+    """
+    Chuyển chuỗi lượt xem (vd: '1.2M', '15K', '732') thành số nguyên.
+    """
+    view_str = view_str.strip().upper().replace(",", "")  # '1.2m' → '1.2M'
+
+    match = re.match(r'^([\d\.]+)([MK]?)$', view_str)
+    if not match:
+        return 0
+
+    number_str, suffix = match.groups()
+    number = float(number_str)
+
+    if suffix == 'M':
+        return int(number * 1_000_000)
+    elif suffix == 'K':
+        return int(number * 1_000)
+    else:
+        return int(number)
+
+async def extract_video_metadata(page: Page) -> list[dict]:
+    """
+    Trích xuất danh sách video với URL và lượt xem (đã chuẩn hóa).
+    Trả về dạng: [{'url': ..., 'views': int}, ...]
+    """
+    results = []
+    video_items = await page.query_selector_all('[data-e2e="user-post-item"]')
+
+    for item in video_items:
+        link_el = await item.query_selector('a[href*="/video/"]')
+        href = await link_el.get_attribute('href') if link_el else None
+
+        views_el = await item.query_selector('[data-e2e="video-views"]')
+        views_text = await views_el.inner_text() if views_el else None
+
+        if href and views_text:
+            results.append({
+                'url': href,
+                'views': normalize_views(views_text)
+            })
+
+    return results
 
 # --- Handler mặc định: crawl trang profile để lấy link video ---
-@router.default_handler
-async def default_handler(context: PlaywrightCrawlingContext) -> None:
+@router.handler(label='newest')
+async def newest_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.url
     context.log.info(f'Start profile crawl: {url}')
 
@@ -57,15 +90,17 @@ async def default_handler(context: PlaywrightCrawlingContext) -> None:
     btn = await context.page.query_selector('main button')
     if btn:
         await btn.click()
-
-    collected = set()
+        
+    collected = {}
     retries = 0
     MAX_RETRIES = 10
 
     while len(collected) < limit and retries < MAX_RETRIES:
-        links = await extract_video_links(context.page)
-        for req in links:
-            collected.add(req.url)
+        links = await extract_video_metadata(context.page)
+        for item in links:
+            url = item['url']
+            if url not in collected:
+                collected[url] = item['views']
 
         context.log.info(f'Found {len(collected)} video links so far...')
 
@@ -78,16 +113,73 @@ async def default_handler(context: PlaywrightCrawlingContext) -> None:
 
         retries += 1
 
-    # Tạo danh sách request từ collected
-    final_links = [Request.from_url(url, label='video', user_data={'url': url}) for url in list(collected)[:limit]]
+    # Tạo danh sách link video và lượt xem từ collected
+    final_links = [{'url': url, 'views': views} for url, views in collected.items()]
+
     if not final_links:
         raise RuntimeError('No video links found on profile page')
-
-    await context.add_requests(final_links)
     context.log.info(f'Queued {len(final_links)} video requests')
+    # Trả về danh sách link video và lượt xem
+    await context.push_data(final_links)
 
 
 
+@router.handler(label='popular')
+async def popular_handler(context: PlaywrightCrawlingContext) -> None:
+    url = context.request.url
+    context.log.info(f'Start profile crawl: {url}')
+
+    # Lấy giới hạn số video cần crawl
+    limit = context.request.user_data.get('limit', 10)
+    if not isinstance(limit, int) or limit <= 0:
+        raise ValueError('`limit` must be a positive integer')
+    
+    # Chuyển sang tab Popular nếu có
+    await context.page.locator('button[aria-label="Popular"]').first.wait_for(timeout=30000)
+    popular_btn = await context.page.query_selector('button[aria-label="Popular"]')
+    if popular_btn:
+        await popular_btn.click()
+        context.log.info('Switched to Popular tab')
+        
+    # Đợi user-post hoặc nút load-more hiển thị
+    await context.page.locator('[data-e2e="user-post-item"], main button').first.wait_for(timeout=30000)
+
+    # Click vào nút load-more nếu có
+    btn = await context.page.query_selector('main button')
+    if btn:
+        await btn.click()
+        
+    collected = {}
+    retries = 0
+    MAX_RETRIES = 10
+
+    while len(collected) < limit and retries < MAX_RETRIES:
+        links = await extract_video_metadata(context.page)
+        for item in links:
+            url = item['url']
+            if url not in collected:
+                collected[url] = item['views']
+
+        context.log.info(f'Found {len(collected)} video links so far...')
+
+        if len(collected) >= limit:
+            break
+
+        # Scroll xuống và chờ load thêm nội dung
+        await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
+        await asyncio.sleep(1)  # Chờ nội dung load xong
+
+        retries += 1
+
+    # Tạo danh sách link video và lượt xem từ collected
+    final_links = [{'url': url, 'views': views} for url, views in collected.items()]
+
+    if not final_links:
+        raise RuntimeError('No video links found on profile page')
+    context.log.info(f'Queued {len(final_links)} video requests')
+    # Trả về danh sách link video và lượt xem
+    await context.push_data(final_links)
+    
 # --- Handler xử lý từng video riêng lẻ ---
 @router.handler(label='video')
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
