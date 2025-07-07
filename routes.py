@@ -5,6 +5,21 @@ from playwright.async_api import Page
 from crawlee import Request
 from crawlee.crawlers import PlaywrightCrawlingContext
 from crawlee.router import Router
+from datetime import datetime, timezone
+import pytz
+
+def convert_timestamp_to_vn_time(timestamp: int) -> str:
+    # Khởi tạo timezone
+    vn_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+    
+    # Dùng timezone-aware UTC datetime (chuẩn mới)
+    dt_utc = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+    
+    # Chuyển sang Asia/Ho_Chi_Minh
+    dt_vn = dt_utc.astimezone(vn_tz)
+    
+    return dt_vn.strftime("%Y-%m-%d %H:%M:%S")
+
 
 router = Router[PlaywrightCrawlingContext]()
 
@@ -108,7 +123,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'plays': item_struct['stats']['playCount'],
         'video_url': url,
         'thumbnail': item_struct['video']['cover'],
-        'publishedAt': item_struct['createTime']
+        'publishedAt': convert_timestamp_to_vn_time(int(item_struct['createTime']))
     }
     
     # Crawl comment (tối đa MAX_COMMENTS)
