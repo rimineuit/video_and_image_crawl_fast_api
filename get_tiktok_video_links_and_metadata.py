@@ -34,7 +34,7 @@ async def crawl_links_tiktok(urls: List, browser_type: str, label: str) -> None:
     crawler = PlaywrightCrawler(
         concurrency_settings=ConcurrencySettings(max_concurrency=1),
         request_handler=router,
-        headless=False,
+        headless=True,
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=90),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
@@ -60,7 +60,7 @@ import asyncio
 import json
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <TikTok_URLs> ")
+        sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <TikTok_URLs>")
          
     tiktok_urls = sys.argv[3:]
     web = sys.argv[1].strip() if len(sys.argv) > 2 else "firefox"
