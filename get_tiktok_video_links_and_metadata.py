@@ -4,8 +4,8 @@ from datetime import timedelta
 import os
 import json
 from typing import List
-# 
-def load_all_json_data(folder_path="/app/storage/datasets/default") -> list[dict]:
+# /app/
+def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
     data_list = []
 
     for filename in os.listdir(folder_path):
@@ -28,7 +28,7 @@ from routes import router
 async def crawl_links_tiktok(urls: List, browser_type: str, label: str) -> None:
     """The crawler entry point."""
 
-    max_items = 20
+    max_items = 30
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
