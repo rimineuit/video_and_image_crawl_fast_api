@@ -28,7 +28,7 @@ from routes import router
 async def crawl_links_tiktok(urls: List, browser_type: str, label: str) -> None:
     """The crawler entry point."""
 
-    max_items = 20
+    max_items = 30
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
@@ -71,4 +71,5 @@ if __name__ == '__main__':
     # Print the result in a pretty JSON format
     print("Result:")
     print(json.dumps(result, indent=2, ensure_ascii=False))
+    
         

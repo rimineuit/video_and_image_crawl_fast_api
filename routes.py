@@ -223,7 +223,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
     previous = 0
     while len(comments) < MAX_COMMENTS:
         await context.page.wait_for_selector('span[data-e2e="comment-level-1"] p', timeout=30000)
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
         els = await context.page.query_selector_all('span[data-e2e="comment-level-1"] p')
         for c in els:
             comments.add((await c.inner_text()).strip())
