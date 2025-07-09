@@ -18,7 +18,7 @@ if not API_KEY:
 
 UPLOAD_URL = f"https://generativelanguage.googleapis.com/upload/v1beta/files?key={API_KEY}"
 
-TMP_DIR = Path("/tmp/my_videos")
+TMP_DIR = Path("tmp/my_videos")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
