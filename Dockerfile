@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Tạo thư mục làm việc
 WORKDIR /app
+# Copy toàn bộ mã nguồn
+COPY . /app
 
 # Copy file requirements trước để tận dụng cache
 COPY requirements.txt .
@@ -35,8 +37,7 @@ RUN pip install --upgrade pip && \
 RUN python -m playwright install && \
     python -m playwright install-deps
 
-# Copy toàn bộ mã nguồn
-COPY . .
+
 
 ENV PORT=8000
 

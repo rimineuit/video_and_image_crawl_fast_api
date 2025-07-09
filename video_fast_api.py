@@ -15,7 +15,6 @@ env["PYTHONUTF8"] = "1"
 class VideoBody(BaseModel):
     url: str
     
-    
 @app.middleware("http")
 async def log_request(request: Request, call_next):
     body = await request.body()
@@ -29,7 +28,7 @@ async def youtube_upload(body: VideoBody):
     clean_url = body.url.strip().rstrip(';')
 
     # Đường dẫn tuyệt đối tới script (nếu cần)
-    script_path = "video2gemini_upload.py"  # hoặc /app/video2gemini_uploads.py nếu dùng Railway
+    script_path = "video2gemini_uploads.py"  # hoặc /app/video2gemini_uploads.py nếu dùng Railway
 
     cmd = ["python", script_path, clean_url]
     print("🔧 subprocess args:", cmd)
