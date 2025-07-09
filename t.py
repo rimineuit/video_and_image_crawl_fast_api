@@ -1,13 +1,22 @@
-import ffmpeg
+import time
+from google import genai
+from google.genai import types
 
-input_file = r"E:\Test_crawlee\input.mp3"
-output_file = r"E:\Test_crawlee\output_cut.mp3"
+client = genai.Client()
 
-# Thời gian: bắt đầu = 1 phút 30, kết thúc = 3 phút 45
-start_time = "00:01:30"
-duration = "00:02:15"  # 3:45 - 1:30 = 2 phút 15 giây
+operation = client.models.generate_videos(
+    model="veo-2.0-generate-001",
+    prompt="Panning wide shot of a calico kitten sleeping in the sunshine",
+    config=types.GenerateVideosConfig(
+        person_generation="dont_allow",  # "dont_allow" or "allow_adult"
+        aspect_ratio="16:9",  # "16:9" or "9:16"
+    ),
+)
 
-# Cắt đoạn và xuất file mới
-ffmpeg.input(input_file, ss=start_time, t=duration).output(output_file).run()
+while not operation.done:
+    time.sleep(20)
+    operation = client.operations.get(operation)
 
-print("✅ Đã cắt và lưu file mới!")
+for n, generated_video in enumerate(operation.response.generated_videos):
+    client.files.download(file=generated_video.video)
+    generated_video.video.save(f"video{n}.mp4")  # save the video
