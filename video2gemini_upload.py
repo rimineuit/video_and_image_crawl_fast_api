@@ -12,15 +12,10 @@ from pathlib import Path
 import requests
 import json
 
-API_KEY = "AIzaSyBUwBMbdeD_l6rQ_TJiLuA3eilOrdbm6AQ"
-if not API_KEY:
-    sys.exit("Chưa đặt biến môi trường GOOGLE_API_KEY")
 
-UPLOAD_URL = f"https://generativelanguage.googleapis.com/upload/v1beta/files?key={API_KEY}"
 
 TMP_DIR = Path("tmp/my_videos")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def download_video(url: str) -> Path:
     """Dùng yt-dlp tải video YouTube (đã merge audio) về TMP_DIR, trả Path."""
@@ -39,11 +34,12 @@ def download_video(url: str) -> Path:
         sys.exit("Không tìm thấy file sau khi tải")
     return out_path
 
-def upload_gemini(file_path: Path) -> dict:
+def upload_gemini(file_path: Path, api_key: str) -> dict:
     """Upload video lên Gemini ➜ trả JSON phản hồi (chỉ upload)."""
     with file_path.open("rb") as f:
+        upload_url = f"https://generativelanguage.googleapis.com/upload/v1beta/files?key={api_key}"
         r = requests.post(
-            UPLOAD_URL,
+            upload_url,
             files={"file": (file_path.name, f, "video/mp4")},
             timeout=120,
         )
@@ -51,14 +47,14 @@ def upload_gemini(file_path: Path) -> dict:
     return r.json()          # {'file': {...}}
 
 def main():
-    if len(sys.argv) < 2:
-        sys.exit("Cách dùng: python video2gemini_upload.py <YouTube_URL>")
-
-    yt_url = sys.argv[1].strip()
+    if len(sys.argv) < 3:
+        sys.exit("Cách dùng: python video2gemini_upload.py <gemini_api_key> <YouTube_URL>")
+    gemini_api_key = sys.argv[1].strip()
+    yt_url = sys.argv[2].strip()
     video  = download_video(yt_url)
 
     try:
-        upload_resp = upload_gemini(video)
+        upload_resp = upload_gemini(video, gemini_api_key)
         print(json.dumps(upload_resp, indent=2, ensure_ascii=False))
     finally:
         if video.exists():

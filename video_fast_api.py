@@ -14,6 +14,7 @@ env["PYTHONUTF8"] = "1"
         
 class VideoBody(BaseModel):
     url: str
+    gemini_api_key: str
     
 @app.middleware("http")
 async def log_request(request: Request, call_next):
@@ -22,15 +23,15 @@ async def log_request(request: Request, call_next):
     response = await call_next(request)
     return response
 
-@app.post("/youtube/upload")
+@app.post("/video/upload")
 async def youtube_upload(body: VideoBody):
     # Làm sạch URL khỏi dấu ; nếu có
     clean_url = body.url.strip().rstrip(';')
-
+    gemini_api_key = body.gemini_api_key.strip()
     # Đường dẫn tuyệt đối tới script (nếu cần)
     script_path = "video2gemini_upload.py"  # hoặc /app/video2gemini_uploads.py nếu dùng Railway
 
-    cmd = ["python", script_path, clean_url]
+    cmd = ["python", script_path, gemini_api_key ,clean_url]
     print("🔧 subprocess args:", cmd)
 
     try:
@@ -69,14 +70,15 @@ async def youtube_upload(body: VideoBody):
 
 class ImageBody(BaseModel):
     url: str
+    gemini_api_key: str
 
 @app.post("/image/upload")
 async def image_upload(body: ImageBody):
     clean_url = body.url.strip().rstrip(';')
-
+    gemini_api_key = body.gemini_api_key.strip()
     # Tùy theo vị trí file script
     script_path = "image2gemini_upload.py"  # hoặc "/app/image2gemini_upload.py"
-    cmd = [sys.executable, script_path, clean_url]
+    cmd = [sys.executable, script_path, gemini_api_key, clean_url]
     print("🖼️ subprocess args:", cmd)
 
     try:
@@ -115,6 +117,7 @@ class TikTokBody(BaseModel):
     urls: List[str]  # Danh sách các URL TikTok
     browser_type: str = "firefox"  # Mặc định là Firefox
     label: str = "newest"  # Nhãn mặc định
+    max_items: int = 30  # Số lượng video tối đa mỗi trang
 
 @app.post("/tiktok/get_video_links_and_metadata")
 async def tiktok_get_video_links_and_metadata(body: TikTokBody):
@@ -123,9 +126,9 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
 
     # Nối các URL thành một chuỗi cách nhau bởi dấu cách
     clean_urls = ' '.join(url.strip().rstrip(';') for url in body.urls)
-
+    max_items = str(body.max_items).strip()
     script_path = "get_tiktok_video_links_and_metadata.py"
-    cmd = [sys.executable, script_path, browser_type, label] + clean_urls.split()
+    cmd = [sys.executable, script_path, browser_type, label, max_items] + clean_urls.split()
     try:
         proc = subprocess.run(
             cmd,
