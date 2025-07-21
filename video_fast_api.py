@@ -167,6 +167,6 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{json_text}"
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
