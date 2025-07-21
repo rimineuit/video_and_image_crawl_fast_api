@@ -149,26 +149,24 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
         
     try:
         # Lấy phần output sau chữ "Result"
-        result_start = proc.stdout.find("Result:")
+        result_start = proc.stdout.find("Result:\n")
         if result_start == -1:
             raise ValueError("Không tìm thấy đoạn 'Result' trong stdout")
 
         json_part = proc.stdout[result_start:]  # phần sau "Result"
-        print("🔍 JSON part:", json_part)
         # Tìm JSON mảng đầu tiên bắt đầu bằng [ và kết thúc bằng ]
         json_match = re.search(r"\[\s*{[\s\S]*?}\s*\]", json_part)
         
         if not json_match:
             raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
 
-        json_text = json_match.group(0)
+        json_text = json_match.group(0).replace("\n", "")
         result_json = json.loads(json_text)
-        
+
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{json_text}"
         )
     return result_json
-
-

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import urllib.parse  # Import for URL encoding
 
 from playwright.async_api import Page
 from crawlee import Request
@@ -239,5 +240,95 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
     # item['comments_content'] = list(comments)[:MAX_COMMENTS]
     # context.log.info(f'Collected {len(item["comments_content"])} comments')
     
-    # # Lưu kết quả
-    # await context.push_data(item)
+    # Lưu kết quả
+    await context.push_data(item)
+
+@router.handler(label='trending_videos_search')
+async def trending_videos_search(context: PlaywrightCrawlingContext) -> None:
+    url = context.request.url
+    context.log.info(f'Start trending videos search crawl: {url}')
+    # Wait for the search button and click it
+    await context.page.locator('button[data-e2e="nav-search"]').first.click(timeout=30000)
+    # Không đợi visible, chỉ cần attach là đủ
+    await context.page.wait_for_selector('ul[data-e2e="search-transfer"] li[data-e2e="search-transfer-guess-search-item"]', state='attached', timeout=30000)
+
+    await context.page.wait_for_timeout(5000) 
+    # Extract text and generate search URL from the list items
+    list_items = await context.page.query_selector_all('li[data-e2e="search-transfer-guess-search-item"]')
+    trending_videos = []
+
+    for item in list_items:
+        title_el = await item.query_selector('h4')
+        title = await title_el.inner_text() if title_el else None
+        
+        if title:
+            # Encode the title to create a search URL
+            encoded_title = urllib.parse.quote(title)
+            search_url = f"https://www.tiktok.com/search?q={encoded_title}"
+            
+            trending_videos.append({'title': title, 'url': search_url})
+
+    context.log.info(f'Collected trending videos: {trending_videos}')
+    
+    # Save the results
+    await context.push_data(trending_videos)
+    
+# @router.handler(label='trending_videos_get')
+# async def trending_videos_get(context: PlaywrightCrawlingContext) -> None:
+#     url = context.request.url
+#     context.log.info(f'Start trending videos get crawl: {url}')
+#     """"""
+
+@router.handler(label='tiktok_ads_get_url_trending_videos')
+async def tiktok_ads(context: PlaywrightCrawlingContext) -> None:
+    # Get limit from user data
+    limit = context.request.user_data.get('limit', 10)
+    if not isinstance(limit, int) or limit <= 0:
+        raise ValueError('`limit` must be a positive integer')
+
+    url = context.request.url
+    context.log.info(f'Start trending videos search crawl: {url}')
+    
+    collected_videos = []
+    retries = 0
+    MAX_RETRIES = 10
+
+    while len(collected_videos) < limit and retries < MAX_RETRIES:
+        # Find all video iframes
+        iframe_elements = await context.page.query_selector_all('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]')
+        
+        # Extract video IDs
+        for iframe in iframe_elements:
+            video_id = await iframe.get_attribute('data-video-id')
+            if video_id:
+                video_url = f"https://www.tiktok.com/@_/video/{video_id}"
+                if video_url not in [v['url'] for v in collected_videos]:
+                    collected_videos.append({
+                        'video_id': video_id,
+                        'url': video_url
+                    })
+        
+        context.log.info(f'Found {len(collected_videos)} videos so far...')
+        
+        if len(collected_videos) >= limit:
+            break
+            
+        # Try to click "View More" button if available
+        try:
+            view_more_btn = await context.page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
+            if view_more_btn:
+                await view_more_btn.click()
+                await context.page.wait_for_timeout(2000)  # Wait for new content to load
+            else:
+                # If no button found, we've reached the end
+                break
+        except Exception as e:
+            context.log.warning(f"Error clicking view more button: {e}")
+            break
+            
+        retries += 1
+
+    # Trim to limit and save results
+    final_videos = collected_videos[:limit]
+    context.log.info(f'Collected {len(final_videos)} videos')
+    await context.push_data(final_videos)

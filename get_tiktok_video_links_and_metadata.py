@@ -34,7 +34,7 @@ async def crawl_links_tiktok(urls: List, browser_type: str, label: str, max_item
         request_handler=router,
         headless=False,
         max_requests_per_crawl=50,
-        request_handler_timeout=timedelta(seconds=90),
+        request_handler_timeout=timedelta(seconds=150),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
         browser_launch_options={
             "args": ["--no-sandbox"]
