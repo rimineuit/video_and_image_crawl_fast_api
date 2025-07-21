@@ -294,38 +294,32 @@ async def tiktok_ads(context: PlaywrightCrawlingContext) -> None:
     MAX_RETRIES = 10
 
     while len(collected_videos) < limit and retries < MAX_RETRIES:
-        # Find all video iframes
+        # Extract video IDs and URLs
         iframe_elements = await context.page.query_selector_all('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]')
-        
-        # Extract video IDs
-        for iframe in iframe_elements:
-            video_id = await iframe.get_attribute('data-video-id')
-            if video_id:
-                video_url = f"https://www.tiktok.com/@_/video/{video_id}"
-                if video_url not in [v['url'] for v in collected_videos]:
-                    collected_videos.append({
-                        'video_id': video_id,
-                        'url': video_url
-                    })
-        
+        new_videos = [
+            {
+                'video_id': await iframe.get_attribute('data-video-id'),
+                'url': f"https://www.tiktok.com/@_/video/{await iframe.get_attribute('data-video-id')}"
+            }
+            for iframe in iframe_elements
+            if await iframe.get_attribute('data-video-id') not in [v['video_id'] for v in collected_videos]
+        ]
+        collected_videos.extend(new_videos)
+
         context.log.info(f'Found {len(collected_videos)} videos so far...')
         
         if len(collected_videos) >= limit:
             break
             
         # Try to click "View More" button if available
-        try:
-            view_more_btn = await context.page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
-            if view_more_btn:
-                await view_more_btn.click()
-                await context.page.wait_for_timeout(2000)  # Wait for new content to load
-            else:
-                # If no button found, we've reached the end
-                break
-        except Exception as e:
-            context.log.warning(f"Error clicking view more button: {e}")
+        view_more_btn = await context.page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
+        if view_more_btn:
+            await view_more_btn.click()
+            await context.page.wait_for_timeout(2000)  # Wait for new content to load
+        else:
+            # If no button found, we've reached the end
             break
-            
+
         retries += 1
 
     # Trim to limit and save results
