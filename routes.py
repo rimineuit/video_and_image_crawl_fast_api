@@ -214,10 +214,12 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'shares': item_struct['stats']['shareCount'],
         'comments': item_struct['stats']['commentCount'],
         'plays': item_struct['stats']['playCount'],
+        'saves': int(item_struct['stats']['collectCount']),  # <--- thêm dòng này
         'video_url': url,
         'thumbnail': item_struct['video']['cover'],
         'publishedAt': convert_timestamp_to_vn_time(int(item_struct['createTime']))
     }
+
     
     # # Crawl comment (tối đa MAX_COMMENTS)
     # comments = set()
