@@ -129,7 +129,7 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     clean_urls = ' '.join(url.strip().rstrip(';') for url in body.urls)
     max_items = str(body.max_items).strip()
     script_path = "get_tiktok_video_links_and_metadata.py"
-    get_comments = bool(body.get_comments).strip().lower()
+    get_comments = bool(body.get_comments)
     cmd = [sys.executable, script_path, browser_type, label, max_items, get_comments] + clean_urls.split()
     try:
         proc = subprocess.run(
