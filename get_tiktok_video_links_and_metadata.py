@@ -25,7 +25,7 @@ from crawlee.crawlers import PlaywrightCrawler
 
 from routes import router
 
-async def crawl_links_tiktok(urls: List, browser_type: str, label: str, max_items: int) -> None:
+async def crawl_links_tiktok(urls: List, browser_type: str, label: str, max_items: int, get_comments: bool) -> None:
     """The crawler entry point."""
 
     # Create a crawler with the necessary settings
@@ -49,7 +49,7 @@ async def crawl_links_tiktok(urls: List, browser_type: str, label: str, max_item
     print(urls)
     await crawler.run(
         [
-            Request.from_url(url, user_data={'limit': max_items}, label=label, retry_count=3) for url in urls
+            Request.from_url(url, user_data={'limit': max_items, get_comments: get_comments}, label=label, retry_count=3) for url in urls
         ]
     )
     
@@ -58,13 +58,14 @@ import asyncio
 import json
 if __name__ == '__main__':
     if len(sys.argv) < 4:
-        sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <max_items> <TikTok_URLs>")
+        sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <max_items> <get_comments> <TikTok_URLs>")
          
-    tiktok_urls = sys.argv[4:]
+    tiktok_urls = sys.argv[5:]
+    get_comments = sys.argv[4].strip().lower() == 'false'
     web = sys.argv[1].strip() if len(sys.argv) > 2 else "firefox"
     label = sys.argv[2].strip() if len(sys.argv) > 3 else "newest"
     max_items = int(sys.argv[3].strip()) if len(sys.argv) > 4 else 30
-    asyncio.run(crawl_links_tiktok(tiktok_urls, web, label, max_items))
+    asyncio.run(crawl_links_tiktok(tiktok_urls, web, label, max_items, get_comments))
     
     result = load_all_json_data()
     # Print the result in a pretty JSON format

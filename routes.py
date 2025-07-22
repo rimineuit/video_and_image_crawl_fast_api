@@ -185,6 +185,7 @@ async def popular_handler(context: PlaywrightCrawlingContext) -> None:
 @router.handler(label='video')
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.user_data.get('url') or context.request.url
+    get_comments = context.request.user_data.get('get_comments', False)
     context.log.info(f'Start video crawl: {url}')
     
     # Lấy dữ liệu JSON từ trang
@@ -220,27 +221,27 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'publishedAt': convert_timestamp_to_vn_time(int(item_struct['createTime']))
     }
 
-    
-    # # Crawl comment (tối đa MAX_COMMENTS)
-    # comments = set()
-    # previous = 0
-    # while len(comments) < MAX_COMMENTS:
-    #     await context.page.wait_for_selector('span[data-e2e="comment-level-1"] p', timeout=30000)
-    #     await asyncio.sleep(5)
-    #     els = await context.page.query_selector_all('span[data-e2e="comment-level-1"] p')
-    #     for c in els:
-    #         comments.add((await c.inner_text()).strip())
+    if get_comments:
+        # Crawl comment (tối đa MAX_COMMENTS)
+        comments = set()
+        previous = 0
+        while len(comments) < MAX_COMMENTS:
+            await context.page.wait_for_selector('span[data-e2e="comment-level-1"] p', timeout=30000)
+            await asyncio.sleep(5)
+            els = await context.page.query_selector_all('span[data-e2e="comment-level-1"] p')
+            for c in els:
+                comments.add((await c.inner_text()).strip())
+            
+            if len(comments) == previous:
+                # Không thêm được comment mới → dừng
+                break
+            previous = len(comments)
+            # Scroll để load thêm
+            await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
+            await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
         
-    #     if len(comments) == previous:
-    #         # Không thêm được comment mới → dừng
-    #         break
-    #     previous = len(comments)
-    #     # Scroll để load thêm
-    #     await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
-    #     await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
-    
-    # item['comments_content'] = list(comments)[:MAX_COMMENTS]
-    # context.log.info(f'Collected {len(item["comments_content"])} comments')
+        item['comments_content'] = list(comments)[:MAX_COMMENTS]
+        context.log.info(f'Collected {len(item["comments_content"])} comments')
     
     # Lưu kết quả
     await context.push_data(item)
