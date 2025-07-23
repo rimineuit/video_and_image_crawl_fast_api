@@ -6,7 +6,7 @@ import time
 def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,  # Set to False for debugging
+            headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -23,7 +23,6 @@ def crawl_tiktok_videos(url, limit=1000):
             java_script_enabled=True
         )
 
-        # Smart resource blocking
         def route_filter(route, request):
             blocked_types = ["image", "font", "stylesheet", "media"]
             blocked_keywords = ["analytics", "tracking", "collect", "adsbygoogle"]
@@ -40,12 +39,14 @@ def crawl_tiktok_videos(url, limit=1000):
         page.goto(url)
         page.wait_for_load_state("domcontentloaded")
         print(f"Navigated to {url}")
+        page.wait_for_timeout(2000)
 
         # === 1. Click cookie/banner if exists ===
         try:
             banner = page.wait_for_selector("#ccModuleBannerWrap > div > div > div > div", timeout=5000)
             banner.click()
             print("Banner clicked.")
+            page.wait_for_timeout(1000)
         except:
             print("Banner not found or clickable.")
 
@@ -54,15 +55,16 @@ def crawl_tiktok_videos(url, limit=1000):
             input_field = page.wait_for_selector('input[placeholder="Nhập/chọn từ danh sách"]', timeout=5000)
             input_field.fill("vi")
             print("Filled input field with 'vi'.")
+            page.wait_for_timeout(1000)
         except:
             print("Input field not found.")
-        time.sleep(1)
 
         # === 3. Select dropdown item ===
         try:
             dropdown_item = page.wait_for_selector('body > div:nth-child(11) > div > div > div > div > div.byted-select-popover-panel-inner > div:nth-child(20)', timeout=5000)
             dropdown_item.click()
             print("Dropdown option selected.")
+            page.wait_for_timeout(2000)
         except:
             print("Dropdown not found or failed to select.")
 
@@ -118,11 +120,12 @@ def crawl_tiktok_videos(url, limit=1000):
                 page.wait_for_timeout(500)
                 view_more_btn.click()
                 print("Clicked 'View More'")
+                page.wait_for_timeout(1000)
 
                 try:
                     page.wait_for_function(
                         f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_video_ids)}',
-                        timeout=5000
+                        timeout=15000
                     )
                 except:
                     print("Waited but no new videos appeared. Sleeping 2s.")
@@ -131,14 +134,11 @@ def crawl_tiktok_videos(url, limit=1000):
                 print("No 'View More' button found. Ending crawl.")
                 break
 
-
             # Clear memory
             del iframe_elements, new_videos
             gc.collect()
 
-
         final_videos = collected_videos[:limit]
-
         browser.close()
         return final_videos
 
