@@ -14,8 +14,10 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
             ]
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
         )
+        context.route("**/*", lambda route, request: route.abort() if request.resource_type in ["image", "font", "stylesheet"] else route.continue_())
+        
         page = context.new_page()
 
         page.goto(url)
