@@ -6,7 +6,7 @@ import time
 def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -109,18 +109,28 @@ def crawl_tiktok_videos(url, limit=1000):
 
             view_more_btn = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
             if view_more_btn:
+                # 👉 Scroll lên trước để tránh stuck DOM
+                page.evaluate("window.scrollBy(0, -200)")
+                page.wait_for_timeout(500)
+
+                # 👉 Scroll tới nút View More rồi click
                 view_more_btn.scroll_into_view_if_needed()
+                page.wait_for_timeout(500)
                 view_more_btn.click()
+                print("Clicked 'View More'")
+
                 try:
                     page.wait_for_function(
                         f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_video_ids)}',
                         timeout=5000
                     )
                 except:
+                    print("Waited but no new videos appeared. Sleeping 2s.")
                     page.wait_for_timeout(2000)
             else:
                 print("No 'View More' button found. Ending crawl.")
                 break
+
 
             # Clear memory
             del iframe_elements, new_videos
