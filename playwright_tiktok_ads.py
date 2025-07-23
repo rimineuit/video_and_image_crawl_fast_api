@@ -6,7 +6,7 @@ import time
 def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,  # Set to False for debugging
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
