@@ -4,7 +4,7 @@ import json
 def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
