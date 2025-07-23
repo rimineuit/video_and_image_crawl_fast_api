@@ -1,48 +1,26 @@
-import os
 import json
 
-def calc_eer(hearts, comments, shares, saves, plays):
-    if plays == 0:
-        return 0
-    return ((hearts * 1 + comments * 5 + shares * 7 + saves * 10) / plays) * 100
+def list_unique_music_ids_with_eer_filter(file_path, eer_threshold=1.0):
+    with open(file_path, "r", encoding="utf-8") as f:
+        video_data = json.load(f)
 
-results = []
+    # Lọc video có eer_score >= 1
+    filtered_videos = [v for v in video_data if v.get("eer_score", 0) >= eer_threshold]
 
-folder_path = "storage/datasets/default"  # thay bằng đường dẫn thực tế
+    # Tập hợp các music.id duy nhất
+    music_ids = set()
+    for item in filtered_videos:
+        music = item.get("music", {})
+        music_id = music.get("id")
+        if music_id:
+            music_ids.add(music_id)
 
-for filename in os.listdir(folder_path):
-    if filename.endswith(".json"):
-        file_path = os.path.join(folder_path, filename)
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    # Hiển thị kết quả
+    print(f"Tổng số video có eer_score >= {eer_threshold}: {len(filtered_videos)}")
+    print(f"Tổng số music.id duy nhất: {len(music_ids)}\n")
 
-            eer = calc_eer(
-                hearts=data.get("hearts", 0),
-                comments=data.get("comments", 0),
-                shares=data.get("shares", 0),
-                saves=data.get("saves", 0),
-                plays=data.get("plays", 1),  # tránh chia cho 0
-            )
+    for idx, mid in enumerate(sorted(music_ids), 1):
+        print(f"{idx}. {mid}")
 
-            results.append({
-                "video_url": data.get("video_url"),
-                "eer": eer,
-                "hearts": data.get("hearts", 0),
-                "comments": data.get("comments", 0),
-                "shares": data.get("shares", 0),
-                "saves": data.get("saves", 0),
-                "views": data.get("plays", 0),
-            })
-
-# # Sắp xếp giảm dần theo EER
-# results.sort(key=lambda x: x["eer"], reverse=True)
-
-# # In ra kết quả
-# for item in results:
-#     print(f"{item['video_url']}: EER = {item['eer']:.4f}%")
-
-i = 0
-for item in results:
-    if item['eer'] > 2:
-        i+= 1
-print(f"\nTổng số video có EER > 2: {i}")
+if __name__ == "__main__":
+    list_unique_music_ids_with_eer_filter("tiktok_video_data.json", eer_threshold=2.0)

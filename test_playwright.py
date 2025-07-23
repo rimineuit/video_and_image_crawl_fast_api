@@ -1,79 +1,74 @@
 from playwright.sync_api import sync_playwright
 import time
 
-# Essential cookies formatted for Playwright with corrected sameSite values
-cookies = [
-    {
-        "name": "sessionid",
-        "value": "ef68dca6ba98f942132c6ea158654200",
-        "domain": ".tiktok.com",
-        "path": "/",
-        "expires": 1766817945.66888,
-        "httpOnly": True,
-        "secure": True,
-        "sameSite": "None"  # Corrected from "none" (case-insensitive, but standardized)
-    },
-    {
-        "name": "sid_guard",
-        "value": "ef68dca6ba98f942132c6ea158654200%7C1751265963%7C15551982%7CSat%2C+27-Dec-2025+06%3A45%3A45+GMT",
-        "domain": ".tiktok.com",
-        "path": "/",
-        "expires": 1782369963.66873,
-        "httpOnly": True,
-        "secure": True,
-        "sameSite": "None"  # Standardized
-    },
-    {
-        "name": "uid_tt",
-        "value": "c3878d3d742f64731a705df809d04d8c7cfe63814d5f4478da9430c6f2b0821e",
-        "domain": ".tiktok.com",
-        "path": "/",
-        "expires": 1766817945.668775,
-        "httpOnly": True,
-        "secure": True,
-        "sameSite": "None"  # Standardized
-    },
-    {
-        "name": "ttwid",
-        "value": "1%7CB74m9kXqUjxeKeQ0piiXRDk3GP3ZX_kyqxsSuEzQDB8%7C1753151283%7C43bf86c7f87706f4c0d30e53c4df59f11bf22f07de21aa28b7943edf63b3e54b",
-        "domain": ".tiktok.com",
-        "path": "/",
-        "expires": 1784687283.111174,
-        "httpOnly": True,
-        "secure": True,
-        "sameSite": "None"  # Corrected from "no_restriction"
-    },
-    {
-        "name": "passport_csrf_token",
-        "value": "70e3fdf23a31bf45b62c591b9ccca966",
-        "domain": ".tiktok.com",
-        "path": "/",
-        "expires": 1756091058.4893,
-        "httpOnly": False,
-        "secure": True,
-        "sameSite": "None"  # Corrected from "no_restriction"
-    },
-    {
-        "name": "store-country-code",
-        "value": "vn",
-        "domain": ".tiktok.com",
-        "path": "/",
-        "expires": 1766817945.348112,
-        "httpOnly": True,
-        "secure": False,
-        "sameSite": "None"  # Standardized
-    }
-]
+# # Provided cookies
+# cookies = [
+#     {
+#         "domain": ".www.tiktok.com",
+#         "expirationDate": 1777259031,
+#         "hostOnly": False,
+#         "httpOnly": False,
+#         "name": "delay_guest_mode_vid",
+#         "path": "/",
+#         "sameSite": "None",
+#         "secure": True,
+#         "session": False,
+#         "storeId": None,
+#         "value": "5"
+#     },
+#     {
+#         "domain": ".tiktok.com",
+#         "expirationDate": 1786764797,
+#         "hostOnly": False,
+#         "httpOnly": False,
+#         "name": "ttcsid_C97F14JC77U63IDI7U40",
+#         "path": "/",
+#         "sameSite": "None",
+#         "secure": False,
+#         "session": False,
+#         "storeId": None,
+#         "value": "1753067375395::YSuHRgwK3wT89k4b0zFx.2.1753068797013"
+#     },
+#     {
+#         "domain": ".tiktok.com",
+#         "expirationDate": 1784603430.186038,
+#         "hostOnly": False,
+#         "httpOnly": True,
+#         "name": "tt-target-idc-sign",
+#         "path": "/",
+#         "sameSite": "None",
+#         "secure": False,
+#         "session": False,
+#         "storeId": None,
+#         "value": "rrKS8KCvjCucx61CT42l97_GWa5H0umBWUU78suoDBHRgpNk7CwTIAakuvx_yR_2H9l8MZk8DUS6yEbrjOxOEH76SHkReOIhnBZ4hdz8GVdjPhv9rTIVBmqQHTAOBfE05CZp2ffFlpdubJA0U5KnYNHVAaFH_4wcFGDacqIy5PMCOW-bwyRyVYvjQeXkBKHEQQA7PL5nHKn0Buc5pWJ0fzs0ZbuHgD32yl2-QyYMvrNm6FDH6Ubz2mihVcSQVZ9lwQwpLpKtMXlDbXuhdCO4edJXOFAVIHvJuCvQoGCFk_CDOACELZvS3foGzPAKzka0wBcFlRmg_uYiFCabvnhoFYm5UitD2b9Zqu3FCt37UCI2FHSFIr3O2Lp8UxYU3KkUKe2mkT75Ha16DBx4POQC54vn57D93zx5DVUcKv18nwhwq53VfxmpfLYcvLscDKmDmY_EQk7oKOraKK8DdSmgX_g8mfenwT1trOJocqED3DtztNUTZjeuZjCCoGEDT1nc"
+#     },
+#     # Add the rest of the cookies here...
+# ]
 
 def main():
     # Initialize Playwright
     with sync_playwright() as p:
-        # Launch browser (Chromium, can also use firefox or webkit)
-        browser = p.chromium.launch(headless=False)  # Set headless=True for no UI
-        context = browser.new_context()
+        # Launch browser
+        browser = p.chromium.launch(
+            headless=False,  # Set to True for no UI
+            args=[
+                "--disable-blink-features=AutomationControlled",  # Prevent detection as automated browser
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process"
+            ]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",  # Custom user agent
+            viewport={"width": 1280, "height": 800},  # Set viewport size
+            permissions=["geolocation"],  # Enable geolocation permission
+            geolocation={"latitude": 40.712776, "longitude": -74.005974},  # New York City, USA
+            timezone_id="America/New_York"  # Set timezone to New York
+        )
 
         # Set cookies in the browser context
-        context.add_cookies(cookies)
+        # context.add_cookies(cookies)
         print("Cookies have been set.")
 
         # Open a new page
@@ -83,30 +78,15 @@ def main():
         url = "https://www.tiktok.com/explore"
         page.goto(url)
 
-        # Wait for the page to load (adjust selector based on TikTok's structure)
+        # Wait for the page to load
         page.wait_for_load_state("domcontentloaded")
         print(f"Navigated to {url}")
 
-        # Scroll down half the screen every second
-        for _ in range(10000):  # Adjust the range for the number of scrolls
-            page.evaluate("window.scrollBy(0, window.innerHeight / 2);")
-            time.sleep(1)  # Wait for 1 second between scrolls
-
-        # Optional: Verify session state (e.g., check for logged-in elements)
-        try:
-            profile_element = page.query_selector("a[href*='/@']")  # Example selector for user profile link
-            if profile_element:
-                print("User appears to be logged in (profile link found).")
-            else:
-                print("User may not be logged in or page structure has changed.")
-        except Exception as e:
-            print(f"Error checking session state: {e}")
-
         # Optional: Take a screenshot for debugging
-        page.screenshot(path="tiktok_search.png")
-        print("Screenshot saved as tiktok_search.png")
+        page.screenshot(path="tiktok_explore.png")
+        print("Screenshot saved as tiktok_explore.png")
 
-        # Wait for a few seconds to observe the page (optional, for non-headless mode)
+        # Wait for a few seconds to observe the page
         time.sleep(5)
 
         # Close the browser

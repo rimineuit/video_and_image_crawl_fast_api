@@ -118,7 +118,7 @@ class TikTokBody(BaseModel):
     browser_type: str = "firefox"  # Mặc định là Firefox
     label: str = "newest"  # Nhãn mặc định
     max_items: int = 30  # Số lượng video tối đa mỗi trang
-    get_comments: bool = False  # Mặc định không lấy bình luận
+    get_comments: str = "False"  # Mặc định không lấy bình luận
 
 @app.post("/tiktok/get_video_links_and_metadata")
 async def tiktok_get_video_links_and_metadata(body: TikTokBody):
@@ -129,7 +129,7 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     clean_urls = ' '.join(url.strip().rstrip(';') for url in body.urls)
     max_items = str(body.max_items).strip()
     script_path = "get_tiktok_video_links_and_metadata.py"
-    get_comments = bool(body.get_comments)
+    get_comments = body.get_comments
     cmd = [sys.executable, script_path, browser_type, label, max_items, get_comments] + clean_urls.split()
     try:
         proc = subprocess.run(
@@ -172,3 +172,52 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
+class TikTokCrawlAdsRequest(BaseModel):
+    limit: int = 1000
+@app.post("/tiktok/crawl_ads")
+def crawl_ads(body: TikTokCrawlAdsRequest):
+    limit = body.limit
+    cmd = [sys.executable, "playwright_tiktok_ads.py", str(limit)]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=env
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+        
+    try:
+        # Lấy phần output sau chữ "Result"
+        result_start = proc.stdout.find("Result:\n")
+        if result_start == -1:
+            raise ValueError("Không tìm thấy đoạn 'Result' trong stdout")
+
+        json_part = proc.stdout[result_start:]  # phần sau "Result"
+        # Tìm JSON mảng đầu tiên bắt đầu bằng [ và kết thúc bằng ]
+        json_match = re.search(r"\[\s*{[\s\S]*?}\s*\]", json_part)
+        
+        if not json_match:
+            raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
+
+        json_text = json_match.group(0).replace("\n", "")
+        result_json = json.loads(json_text)
+
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+        )
+    return result_json
+        
+        
+    

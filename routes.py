@@ -185,7 +185,7 @@ async def popular_handler(context: PlaywrightCrawlingContext) -> None:
 @router.handler(label='video')
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.user_data.get('url') or context.request.url
-    get_comments = context.request.user_data.get('get_comments', False)
+    get_comments = context.request.user_data.get('get_comments')
     context.log.info(f'Start video crawl: {url}')
     
     # Lấy dữ liệu JSON từ trang
@@ -221,7 +221,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'publishedAt': convert_timestamp_to_vn_time(int(item_struct['createTime']))
     }
 
-    if get_comments:
+    if get_comments == 'true':
         # Crawl comment (tối đa MAX_COMMENTS)
         comments = set()
         previous = 0

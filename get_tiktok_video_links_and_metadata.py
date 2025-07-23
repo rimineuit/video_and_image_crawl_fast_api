@@ -25,14 +25,14 @@ from crawlee.crawlers import PlaywrightCrawler
 
 from routes import router
 
-async def crawl_links_tiktok(urls: List, browser_type: str, label: str, max_items: int, get_comments: bool) -> None:
+async def crawl_links_tiktok(urls: List, browser_type: str, label: str, max_items: int, get_comments: str) -> None:
     """The crawler entry point."""
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
         concurrency_settings=ConcurrencySettings(max_concurrency=1),
         request_handler=router,
-        headless=True,
+        headless=False,  # Set to True for headless mode
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=25000),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
@@ -61,7 +61,7 @@ if __name__ == '__main__':
         sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <max_items> <get_comments> <TikTok_URLs>")
          
     tiktok_urls = sys.argv[5:]
-    get_comments = sys.argv[4].strip().lower() == 'false'
+    get_comments = sys.argv[4].strip().lower()
     web = sys.argv[1].strip() if len(sys.argv) > 2 else "firefox"
     label = sys.argv[2].strip() if len(sys.argv) > 3 else "newest"
     max_items = int(sys.argv[3].strip()) if len(sys.argv) > 4 else 30
