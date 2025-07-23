@@ -3,17 +3,17 @@ import json
 import gc
 import time
 
-def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
+def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process"
-            ]
+            # args=[
+            #     "--disable-blink-features=AutomationControlled",
+            #     "--no-sandbox",
+            #     "--disable-dev-shm-usage",
+            #     "--disable-web-security",
+            #     "--disable-features=IsolateOrigins,site-per-process"
+            # ]
         )
 
         context = browser.new_context(
@@ -75,18 +75,21 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
             return
 
         collected_videos = []
+        seen_video_ids = set()
         empty_attempts = 0
 
         while len(collected_videos) < limit:
             iframe_elements = page.query_selector_all('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]')
-            new_videos = [
-                {
-                    'video_id': iframe.get_attribute('data-video-id'),
-                    'url': f"https://www.tiktok.com/@_/video/{iframe.get_attribute('data-video-id')}"
-                }
-                for iframe in iframe_elements
-                if iframe.get_attribute('data-video-id') not in [v['video_id'] for v in collected_videos]
-            ]
+            
+            new_videos = []
+            for iframe in iframe_elements:
+                video_id = iframe.get_attribute('data-video-id')
+                if video_id and video_id not in seen_video_ids:
+                    seen_video_ids.add(video_id)
+                    new_videos.append({
+                        'video_id': video_id,
+                        'url': f"https://www.tiktok.com/@_/video/{video_id}"
+                    })
 
             if not new_videos:
                 empty_attempts += 1
@@ -109,7 +112,7 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
                 view_more_btn.click()
                 try:
                     page.wait_for_function(
-                        f'document.querySelectorAll("blockquote[data-video-id]").length > {len(collected_videos)}',
+                        f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_video_ids)}',
                         timeout=5000
                     )
                 except:
@@ -118,14 +121,12 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
                 print("No 'View More' button found. Ending crawl.")
                 break
 
-            # Clear memory after each loop
+            # Clear memory
             del iframe_elements, new_videos
             gc.collect()
 
+
         final_videos = collected_videos[:limit]
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(final_videos, f, indent=2, ensure_ascii=False)
-        print(f"Results saved to {output_file}")
 
         browser.close()
         return final_videos
@@ -137,6 +138,6 @@ if __name__ == "__main__":
         print("Usage: python playwright_tiktok_ads.py [limit]")
         sys.exit(1)
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-    result = crawl_tiktok_videos("https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi", limit=limit, output_file="tiktok_videos.json")
+    result = crawl_tiktok_videos("https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi", limit=limit)
     print("Result:")
     print(json.dumps(result, indent=2, ensure_ascii=False))
