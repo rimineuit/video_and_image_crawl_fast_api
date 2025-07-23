@@ -82,7 +82,6 @@ def fetch_video_list(file_path):
 
 def main():
     input_file = "tiktok_videos.json"
-    output_file = "tiktok_video_data.json"
 
     video_list = fetch_video_list(input_file)
     all_video_data = []
@@ -95,9 +94,8 @@ def main():
         except Exception as e:
             print(f"Failed to fetch data for {video['url']}: {e}")
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(all_video_data, f, ensure_ascii=False, indent=4)
-    print(f"Data saved to {output_file}")
+    print("Results:")
+    print(json.dumps(all_video_data, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()
