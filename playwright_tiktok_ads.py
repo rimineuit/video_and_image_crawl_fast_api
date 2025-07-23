@@ -1,10 +1,12 @@
 from playwright.sync_api import sync_playwright
 import json
+import gc
+import time
 
 def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -13,17 +15,33 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
                 "--disable-features=IsolateOrigins,site-per-process"
             ]
         )
+
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720},
+            bypass_csp=True,
+            java_script_enabled=True
         )
-        context.route("**/*", lambda route, request: route.abort() if request.resource_type in ["image", "font", "stylesheet"] else route.continue_())
+
+        # Smart resource blocking
+        def route_filter(route, request):
+            blocked_types = ["image", "font", "stylesheet", "media"]
+            blocked_keywords = ["analytics", "tracking", "collect", "adsbygoogle"]
+            if (
+                request.resource_type in blocked_types or
+                any(keyword in request.url.lower() for keyword in blocked_keywords)
+            ):
+                return route.abort()
+            return route.continue_()
+
+        context.route("**/*", route_filter)
         
         page = context.new_page()
-
         page.goto(url)
         page.wait_for_load_state("domcontentloaded")
         print(f"Navigated to {url}")
-        # === 1. Wait for and click the banner ===
+
+        # === 1. Click cookie/banner if exists ===
         try:
             banner = page.wait_for_selector("#ccModuleBannerWrap > div > div > div > div", timeout=5000)
             banner.click()
@@ -31,16 +49,16 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
         except:
             print("Banner not found or clickable.")
 
-        # === 2. Wait for input field and fill it ===
+        # === 2. Fill language input ===
         try:
             input_field = page.wait_for_selector('input[placeholder="Nhập/chọn từ danh sách"]', timeout=5000)
             input_field.fill("vi")
             print("Filled input field with 'vi'.")
         except:
             print("Input field not found.")
-        import time
         time.sleep(1)
-        # === 3. Wait for dropdown and click the first item ===
+
+        # === 3. Select dropdown item ===
         try:
             dropdown_item = page.wait_for_selector('body > div:nth-child(11) > div > div > div > div > div.byted-select-popover-panel-inner > div:nth-child(20)', timeout=5000)
             dropdown_item.click()
@@ -48,7 +66,7 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
         except:
             print("Dropdown not found or failed to select.")
 
-        # === 4. Wait for video elements to appear ===
+        # === 4. Wait for videos to appear ===
         try:
             page.wait_for_selector('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]', timeout=10000)
             print("Video elements loaded.")
@@ -89,21 +107,32 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
             view_more_btn = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
             if view_more_btn:
                 view_more_btn.click()
-                page.wait_for_timeout(2000)
+                try:
+                    page.wait_for_function(
+                        f'document.querySelectorAll("blockquote[data-video-id]").length > {len(collected_videos)}',
+                        timeout=5000
+                    )
+                except:
+                    page.wait_for_timeout(2000)
             else:
                 print("No 'View More' button found. Ending crawl.")
                 break
 
+            # Clear memory after each loop
+            del iframe_elements, new_videos
+            gc.collect()
+
         final_videos = collected_videos[:limit]
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(final_videos, f, indent=2, ensure_ascii=False)
         print(f"Results saved to {output_file}")
 
         browser.close()
-        
         return final_videos
-        
-import sys
-# Example usage
+
+# Run example
 if __name__ == "__main__":
+    import sys
     if len(sys.argv) < 2:
         print("Usage: python playwright_tiktok_ads.py [limit]")
         sys.exit(1)
