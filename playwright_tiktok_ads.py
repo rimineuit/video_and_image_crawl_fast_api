@@ -7,13 +7,13 @@ def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            # args=[
-            #     "--disable-blink-features=AutomationControlled",
-            #     "--no-sandbox",
-            #     "--disable-dev-shm-usage",
-            #     "--disable-web-security",
-            #     "--disable-features=IsolateOrigins,site-per-process"
-            # ]
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process"
+            ]
         )
 
         context = browser.new_context(
@@ -109,6 +109,7 @@ def crawl_tiktok_videos(url, limit=1000):
 
             view_more_btn = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
             if view_more_btn:
+                view_more_btn.scroll_into_view_if_needed()
                 view_more_btn.click()
                 try:
                     page.wait_for_function(
