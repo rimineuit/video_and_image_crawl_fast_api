@@ -15,10 +15,6 @@ def crawl_tiktok_videos(url, limit=1000, output_file="tiktok_videos.json"):
         )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-            permissions=["geolocation"],
-            geolocation={"latitude": 21.028511, "longitude": 105.804817},
-            timezone_id="Asia/Ho_Chi_Minh"
         )
         page = context.new_page()
 
@@ -109,7 +105,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python playwright_tiktok_ads.py [limit]")
         sys.exit(1)
-    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
+    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
     result = crawl_tiktok_videos("https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi", limit=limit, output_file="tiktok_videos.json")
     print("Result:")
     print(json.dumps(result, indent=2, ensure_ascii=False))

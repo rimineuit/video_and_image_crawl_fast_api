@@ -174,7 +174,7 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     return result_json
 
 class TikTokCrawlAdsRequest(BaseModel):
-    limit: int = 1000
+    limit: int = 10
 @app.post("/tiktok/crawl_ads")
 def crawl_ads(body: TikTokCrawlAdsRequest):
     limit = body.limit
