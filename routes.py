@@ -276,11 +276,6 @@ async def trending_videos_search(context: PlaywrightCrawlingContext) -> None:
     # Save the results
     await context.push_data(trending_videos)
     
-# @router.handler(label='trending_videos_get')
-# async def trending_videos_get(context: PlaywrightCrawlingContext) -> None:
-#     url = context.request.url
-#     context.log.info(f'Start trending videos get crawl: {url}')
-#     """"""
 
 @router.handler(label='tiktok_ads_get_url_trending_videos')
 async def tiktok_ads(context: PlaywrightCrawlingContext) -> None:

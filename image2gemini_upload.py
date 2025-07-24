@@ -47,9 +47,9 @@ def main():
     if len(sys.argv) < 3:
         sys.exit("Cách dùng: python image2gemini_upload.py <gemini_api_key> <Image_URL>")
 
-    img_url = sys.argv[1].strip()
+    img_url = sys.argv[2].strip()
     img_file = download_image(img_url)
-    gemini_api_key = sys.argv[2].strip()
+    gemini_api_key = sys.argv[1].strip()
     try:
         resp = upload_gemini(img_file, gemini_api_key)
         print(json.dumps(resp, indent=2, ensure_ascii=False))
