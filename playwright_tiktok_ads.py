@@ -78,6 +78,20 @@ def crawl_tiktok_videos(url, limit=1000):
                 "vi",
                 'div.byted-select-popover-panel-inner div:nth-child(20)'
             )
+            
+            # ===== Kiểm tra đã chọn ngôn ngữ là "Việt Nam" =====
+            try:
+                lang_selector = page.wait_for_selector(
+                    "#ccModuleBannerWrap div div div div span span span span div span:nth-child(1)",
+                    timeout=5000
+                )
+                current_lang = lang_selector.inner_text().strip()
+                if current_lang != "Việt Nam":
+                    raise ValueError(f"Ngôn ngữ hiện tại là '{current_lang}', không phải 'Việt Nam'")
+                log("Đã xác nhận ngôn ngữ là 'Việt Nam'.")
+            except Exception as e:
+                log(f"Lỗi khi kiểm tra ngôn ngữ: {e}", "ERROR")
+                return []
 
             # # Sort by Likes ("Lượt thích")
             # try:
@@ -95,6 +109,8 @@ def crawl_tiktok_videos(url, limit=1000):
             #     log(f"Failed to sort by likes: {e}", "ERROR")
 
             # Wait for video elements
+            
+
             try:
                 page.wait_for_selector('blockquote[data-video-id]', timeout=10000)
                 log("Video elements loaded.")
