@@ -32,7 +32,7 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
 def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
