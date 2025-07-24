@@ -34,118 +34,113 @@ def crawl_tiktok_videos(url, limit=1000):
             return route.continue_()
 
         context.route("**/*", route_filter)
-        
         page = context.new_page()
-        page.goto(url)
-        page.wait_for_load_state("domcontentloaded")
-        print(f"Navigated to {url}")
-        page.wait_for_timeout(2000)
 
-        # === 1. Click cookie/banner if exists ===
         try:
-            banner = page.wait_for_selector("#ccModuleBannerWrap > div > div > div > div", timeout=5000)
-            banner.click()
-            print("Banner clicked.")
-            page.wait_for_timeout(1000)
-        except:
-            print("Banner not found or clickable.")
-
-        # === 2. Fill language input ===
-        try:
-            input_field = page.wait_for_selector('input[placeholder="Nhập/chọn từ danh sách"]', timeout=5000)
-            input_field.fill("vi")
-            print("Filled input field with 'vi'.")
-            page.wait_for_timeout(1000)
-        except:
-            print("Input field not found.")
-
-        # === 3. Select dropdown item ===
-        try:
-            dropdown_item = page.wait_for_selector('body > div:nth-child(11) > div > div > div > div > div.byted-select-popover-panel-inner > div:nth-child(20)', timeout=5000)
-            dropdown_item.click()
-            print("Dropdown option selected.")
+            page.goto(url)
+            page.wait_for_load_state("domcontentloaded")
+            print(f"Navigated to {url}")
             page.wait_for_timeout(2000)
-        except:
-            print("Dropdown not found or failed to select.")
 
-        # === 4. Wait for videos to appear ===
-        try:
-            page.wait_for_selector('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]', timeout=10000)
-            print("Video elements loaded.")
-        except:
-            print("Video elements not found. Exiting.")
-            return
-
-        collected_videos = []
-        seen_video_ids = set()
-        empty_attempts = 0
-
-        while len(collected_videos) < limit:
-            iframe_elements = page.query_selector_all('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]')
-            
-            video_data = page.eval_on_selector_all(
-                'div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]',
-                'elements => elements.map(el => el.getAttribute("data-video-id"))'
-            )
-
-            new_videos = []
-            for video_id in video_data:
-                if video_id and video_id not in seen_video_ids:
-                    seen_video_ids.add(video_id)
-                    new_videos.append({
-                        'video_id': video_id,
-                        'url': f"https://www.tiktok.com/@_/video/{video_id}"
-                    })
-
-
-            if not new_videos:
-                empty_attempts += 1
-                print(f"No new videos found. Empty attempts: {empty_attempts}")
-                if empty_attempts >= 3:
-                    print("No videos collected for 3 consecutive attempts. Ending crawl.")
-                    break
-            else:
-                empty_attempts = 0
-
-            collected_videos.extend(new_videos)
-            print(f"Found {len(collected_videos)} videos so far...")
-
-            if len(collected_videos) >= limit:
-                print(f"Reached the limit of {limit} videos. Ending crawl.")
-                break
-
-            view_more_btn = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
-            if view_more_btn:
-                # 👉 Scroll lên trước để tránh stuck DOM
-                page.evaluate("window.scrollBy(0, -200)")
-                page.wait_for_timeout(500)
-
-                # 👉 Scroll tới nút View More rồi click
-                view_more_btn.scroll_into_view_if_needed()
-                page.wait_for_timeout(500)
-                view_more_btn.click()
-                print("Clicked 'View More'")
+            # Click banner
+            try:
+                banner = page.wait_for_selector("#ccModuleBannerWrap div div div div", timeout=5000)
+                banner.click()
+                print("Banner clicked.")
                 page.wait_for_timeout(1000)
+            except:
+                print("Banner not found or clickable.")
 
-                try:
-                    page.wait_for_function(
-                        f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_video_ids)}',
-                        timeout=15000
-                    )
-                except:
-                    print("Waited but no new videos appeared. Sleeping 2s.")
-                    page.wait_for_timeout(2000)
-            else:
-                print("No 'View More' button found. Ending crawl.")
-                break
+            # Fill language input
+            try:
+                input_field = page.wait_for_selector('input[placeholder="Nhập/chọn từ danh sách"]', timeout=5000)
+                input_field.fill("vi")
+                print("Filled input field with 'vi'.")
+                page.wait_for_timeout(1000)
+            except:
+                print("Input field not found.")
 
-            # Clear memory
-            del iframe_elements, new_videos
-            gc.collect()
+            # Select dropdown
+            try:
+                dropdown_item = page.wait_for_selector('div.byted-select-popover-panel-inner div:nth-child(20)', timeout=5000)
+                dropdown_item.click()
+                print("Dropdown option selected.")
+                page.wait_for_timeout(2000)
+            except:
+                print("Dropdown not found or failed to select.")
 
-        final_videos = collected_videos[:limit]
-        browser.close()
-        return final_videos
+            # Wait for videos
+            try:
+                page.wait_for_selector('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]', timeout=10000)
+                print("Video elements loaded.")
+            except:
+                print("Video elements not found. Exiting.")
+                return []
+
+            collected_videos = []
+            seen_video_ids = set()
+            empty_attempts = 0
+
+            while len(collected_videos) < limit:
+                video_data = page.eval_on_selector_all(
+                    'div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]',
+                    'elements => elements.map(el => el.getAttribute("data-video-id"))'
+                )
+
+                new_videos = []
+                for video_id in video_data:
+                    if video_id and video_id not in seen_video_ids:
+                        seen_video_ids.add(video_id)
+                        new_videos.append({
+                            'video_id': video_id,
+                            'url': f"https://www.tiktok.com/@_/video/{video_id}"
+                        })
+
+                if not new_videos:
+                    empty_attempts += 1
+                    print(f"No new videos found. Empty attempts: {empty_attempts}")
+                    if empty_attempts >= 3:
+                        print("No videos collected for 3 consecutive attempts. Ending crawl.")
+                        break
+                else:
+                    empty_attempts = 0
+
+                collected_videos.extend(new_videos)
+                print(f"Found {len(collected_videos)} videos so far...")
+
+                if len(collected_videos) >= limit:
+                    print(f"Reached the limit of {limit} videos. Ending crawl.")
+                    break
+
+                view_more_btn = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
+                if view_more_btn:
+                    page.evaluate("window.scrollBy(0, -200)")
+                    page.wait_for_timeout(500)
+                    view_more_btn.scroll_into_view_if_needed()
+                    page.wait_for_timeout(500)
+                    view_more_btn.click()
+                    print("Clicked 'View More'")
+                    page.wait_for_timeout(1000)
+
+                    try:
+                        page.wait_for_function(
+                            f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_video_ids)}',
+                            timeout=15000
+                        )
+                    except:
+                        print("Waited but no new videos appeared. Sleeping 2s.")
+                        page.wait_for_timeout(2000)
+                else:
+                    print("No 'View More' button found. Ending crawl.")
+                    break
+
+                gc.collect()
+
+            return collected_videos[:limit]
+
+        finally:
+            context.close()
+            browser.close()
 
 # Run example
 if __name__ == "__main__":
