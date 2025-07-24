@@ -2,11 +2,37 @@ from playwright.sync_api import sync_playwright
 import json
 import gc
 import time
+import sys
 
+# ===== Constants =====
+TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi"
+BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
+BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
+
+# ===== Logging =====
+def log(msg, level="INFO"):
+    print(f"[{level}] {msg}")
+
+# ===== Dropdown Helper =====
+def select_dropdown_option(page, placeholder_text, value, option_selector):
+    try:
+        input_field = page.wait_for_selector(f'input[placeholder="{placeholder_text}"]', timeout=5000)
+        input_field.fill(value)
+        page.wait_for_timeout(1000)
+        dropdown_item = page.wait_for_selector(option_selector, timeout=5000)
+        dropdown_item.click()
+        page.wait_for_timeout(1000)
+        log("Dropdown option selected successfully.")
+        return True
+    except Exception as e:
+        log(f"Dropdown selection failed: {e}", "ERROR")
+        return False
+
+# ===== Main Crawler =====
 def crawl_tiktok_videos(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -24,12 +50,7 @@ def crawl_tiktok_videos(url, limit=1000):
         )
 
         def route_filter(route, request):
-            blocked_types = ["image", "font", "stylesheet", "media"]
-            blocked_keywords = ["analytics", "tracking", "collect", "adsbygoogle"]
-            if (
-                request.resource_type in blocked_types or
-                any(keyword in request.url.lower() for keyword in blocked_keywords)
-            ):
+            if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
                 return route.abort()
             return route.continue_()
 
@@ -39,116 +60,112 @@ def crawl_tiktok_videos(url, limit=1000):
         try:
             page.goto(url)
             page.wait_for_load_state("domcontentloaded")
-            print(f"Navigated to {url}")
-            page.wait_for_timeout(2000)
+            log(f"Navigated to {url}")
 
-            # Click banner
+            # Close banner if present
             try:
                 banner = page.wait_for_selector("#ccModuleBannerWrap div div div div", timeout=5000)
                 banner.click()
-                print("Banner clicked.")
                 page.wait_for_timeout(1000)
+                log("Banner clicked.")
             except:
-                print("Banner not found or clickable.")
+                log("Banner not found or clickable.")
 
-            # Fill language input
+            # Set language to Vietnamese
+            select_dropdown_option(
+                page,
+                "Nhập/chọn từ danh sách",
+                "vi",
+                'div.byted-select-popover-panel-inner div:nth-child(20)'
+            )
+
+            # Sort by Likes ("Lượt thích")
             try:
-                input_field = page.wait_for_selector('input[placeholder="Nhập/chọn từ danh sách"]', timeout=5000)
-                input_field.fill("vi")
-                print("Filled input field with 'vi'.")
+                trending_button = page.wait_for_selector(
+                    '#ccContentContainer > div.BannerLayout_listWrapper__2FJA_ > div > div.PopularList_listSearcher__Bko2l.index-mobile_listSearcher__rKZAb > div.ListFilter_container__DwDsk.index-mobile_container__3wl4i.PopularList_sorter__N_G9_.index-mobile_filters__LxraM > div:nth-child(1) > div.ListFilter_RightSearchWrap__UyaKk > div > span.byted-select.byted-select-size-md.byted-select-single.byted-can-input-grouped.CcRimlessSelect_ccRimSelector__m4xdd.index-mobile_ccRimSelector__S2lLr.index-mobile_sortWrapSelect__2Yw1N', timeout=5000
+                )
+                trending_button.click()
                 page.wait_for_timeout(1000)
-            except:
-                print("Input field not found.")
 
-            # Select dropdown
-            try:
-                dropdown_item = page.wait_for_selector('div.byted-select-popover-panel-inner div:nth-child(20)', timeout=5000)
-                dropdown_item.click()
-                print("Dropdown option selected.")
+                likes_option = page.wait_for_selector('div[data-option-id="SelectOption35"]', timeout=5000)
+                likes_option.click()
                 page.wait_for_timeout(2000)
-            except:
-                print("Dropdown not found or failed to select.")
+                log("Sorted by 'Lượt thích'.")
+            except Exception as e:
+                log(f"Failed to sort by likes: {e}", "ERROR")
 
-            # Wait for videos
+            # Wait for video elements
             try:
-                page.wait_for_selector('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]', timeout=10000)
-                print("Video elements loaded.")
+                page.wait_for_selector('blockquote[data-video-id]', timeout=10000)
+                log("Video elements loaded.")
             except:
-                print("Video elements not found. Exiting.")
+                log("Video elements not found. Exiting.", "ERROR")
                 return []
 
-            collected_videos = []
-            seen_video_ids = set()
+            collected = []
+            seen_ids = set()
             empty_attempts = 0
 
-            while len(collected_videos) < limit:
-                video_data = page.eval_on_selector_all(
-                    'div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]',
-                    'elements => elements.map(el => el.getAttribute("data-video-id"))'
-                )
+            while len(collected) < limit:
+                video_elements = page.query_selector_all('blockquote[data-video-id]')
+                new_found = 0
 
-                new_videos = []
-                for video_id in video_data:
-                    if video_id and video_id not in seen_video_ids:
-                        seen_video_ids.add(video_id)
-                        new_videos.append({
+                for el in video_elements[-20:]:  # Only scan the most recent ones
+                    video_id = el.get_attribute("data-video-id")
+                    if video_id and video_id not in seen_ids:
+                        seen_ids.add(video_id)
+                        collected.append({
                             'video_id': video_id,
                             'url': f"https://www.tiktok.com/@_/video/{video_id}"
                         })
+                        new_found += 1
 
-                if not new_videos:
+                if new_found == 0:
                     empty_attempts += 1
-                    print(f"No new videos found. Empty attempts: {empty_attempts}")
+                    log(f"No new videos found. Attempt {empty_attempts}/3")
                     if empty_attempts >= 3:
-                        print("No videos collected for 3 consecutive attempts. Ending crawl.")
+                        log("No new videos for 3 consecutive attempts. Stopping.")
                         break
                 else:
                     empty_attempts = 0
 
-                collected_videos.extend(new_videos)
-                print(f"Found {len(collected_videos)} videos so far...")
+                log(f"Collected {len(collected)} / {limit} videos...")
 
-                if len(collected_videos) >= limit:
-                    print(f"Reached the limit of {limit} videos. Ending crawl.")
+                if len(collected) >= limit:
                     break
 
-                view_more_btn = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
-                if view_more_btn:
-                    page.evaluate("window.scrollBy(0, -200)")
+                view_more = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
+                if view_more:
+                    view_more.scroll_into_view_if_needed()
                     page.wait_for_timeout(500)
-                    view_more_btn.scroll_into_view_if_needed()
-                    page.wait_for_timeout(500)
-                    view_more_btn.click()
-                    print("Clicked 'View More'")
-                    page.wait_for_timeout(1000)
-
+                    view_more.click()
+                    log("Clicked 'View More' button.")
                     try:
                         page.wait_for_function(
-                            f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_video_ids)}',
-                            timeout=15000
+                            f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_ids)}',
+                            timeout=10000
                         )
                     except:
-                        print("Waited but no new videos appeared. Sleeping 2s.")
                         page.wait_for_timeout(2000)
                 else:
-                    print("No 'View More' button found. Ending crawl.")
+                    log("No 'View More' button found. Stopping.")
                     break
 
                 gc.collect()
 
-            return collected_videos[:limit]
+            return collected[:limit]
 
         finally:
             context.close()
             browser.close()
 
-# Run example
+# ===== CLI Runner =====
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: python playwright_tiktok_ads.py [limit]")
+    try:
+        limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
+        result = crawl_tiktok_videos(TIKTOK_URL, limit=limit)
+        log("Crawling completed.")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    except Exception as e:
+        log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)
-    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-    result = crawl_tiktok_videos("https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi", limit=limit)
-    print("Result:")
-    print(json.dumps(result, indent=2, ensure_ascii=False))
