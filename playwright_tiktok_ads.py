@@ -79,20 +79,20 @@ def crawl_tiktok_videos(url, limit=1000):
                 'div.byted-select-popover-panel-inner div:nth-child(20)'
             )
 
-            # Sort by Likes ("Lượt thích")
-            try:
-                trending_button = page.wait_for_selector(
-                    '#ccContentContainer > div.BannerLayout_listWrapper__2FJA_ > div > div.PopularList_listSearcher__Bko2l.index-mobile_listSearcher__rKZAb > div.ListFilter_container__DwDsk.index-mobile_container__3wl4i.PopularList_sorter__N_G9_.index-mobile_filters__LxraM > div:nth-child(1) > div.ListFilter_RightSearchWrap__UyaKk > div > span.byted-select.byted-select-size-md.byted-select-single.byted-can-input-grouped.CcRimlessSelect_ccRimSelector__m4xdd.index-mobile_ccRimSelector__S2lLr.index-mobile_sortWrapSelect__2Yw1N', timeout=5000
-                )
-                trending_button.click()
-                page.wait_for_timeout(1000)
+            # # Sort by Likes ("Lượt thích")
+            # try:
+            #     trending_button = page.wait_for_selector(
+            #         '#ccContentContainer > div.BannerLayout_listWrapper__2FJA_ > div > div.PopularList_listSearcher__Bko2l.index-mobile_listSearcher__rKZAb > div.ListFilter_container__DwDsk.index-mobile_container__3wl4i.PopularList_sorter__N_G9_.index-mobile_filters__LxraM > div:nth-child(1) > div.ListFilter_RightSearchWrap__UyaKk > div > span.byted-select.byted-select-size-md.byted-select-single.byted-can-input-grouped.CcRimlessSelect_ccRimSelector__m4xdd.index-mobile_ccRimSelector__S2lLr.index-mobile_sortWrapSelect__2Yw1N', timeout=5000
+            #     )
+            #     trending_button.click()
+            #     page.wait_for_timeout(1000)
 
-                likes_option = page.wait_for_selector('div[data-option-id="SelectOption35"]', timeout=5000)
-                likes_option.click()
-                page.wait_for_timeout(2000)
-                log("Sorted by 'Lượt thích'.")
-            except Exception as e:
-                log(f"Failed to sort by likes: {e}", "ERROR")
+            #     likes_option = page.wait_for_selector('div[data-option-id="SelectOption35"]', timeout=5000)
+            #     likes_option.click()
+            #     page.wait_for_timeout(2000)
+            #     log("Sorted by 'Lượt thích'.")
+            # except Exception as e:
+            #     log(f"Failed to sort by likes: {e}", "ERROR")
 
             # Wait for video elements
             try:
