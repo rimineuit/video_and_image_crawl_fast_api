@@ -164,7 +164,7 @@ if __name__ == "__main__":
     try:
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
         result = crawl_tiktok_videos(TIKTOK_URL, limit=limit)
-        log("Crawling completed.")
+        log("Result:")
         print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")

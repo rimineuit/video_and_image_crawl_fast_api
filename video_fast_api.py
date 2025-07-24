@@ -218,6 +218,7 @@ def crawl_ads(body: TikTokCrawlAdsRequest):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
 class MetadataAdsRequest(BaseModel):
     urls: List[str]  # Danh sách các URL TikTok
     
