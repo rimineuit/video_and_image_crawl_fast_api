@@ -83,15 +83,20 @@ def crawl_tiktok_videos(url, limit=1000):
         while len(collected_videos) < limit:
             iframe_elements = page.query_selector_all('div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]')
             
+            video_data = page.eval_on_selector_all(
+                'div.index-mobile_cardWrapper__SgzEk blockquote[data-video-id]',
+                'elements => elements.map(el => el.getAttribute("data-video-id"))'
+            )
+
             new_videos = []
-            for iframe in iframe_elements:
-                video_id = iframe.get_attribute('data-video-id')
+            for video_id in video_data:
                 if video_id and video_id not in seen_video_ids:
                     seen_video_ids.add(video_id)
                     new_videos.append({
                         'video_id': video_id,
                         'url': f"https://www.tiktok.com/@_/video/{video_id}"
                     })
+
 
             if not new_videos:
                 empty_attempts += 1
