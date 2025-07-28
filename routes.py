@@ -121,9 +121,7 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
         raise RuntimeError('No video links found on profile page')
     context.log.info(f'Queued {len(final_links)} video requests')
     # Trả về danh sách link video và lượt xem
-    await context.push_data(final_links)
-
-
+    await context.push_data(final_links[:10])
 
 @router.handler(label='popular')
 async def popular_handler(context: PlaywrightCrawlingContext) -> None:
@@ -179,7 +177,7 @@ async def popular_handler(context: PlaywrightCrawlingContext) -> None:
         raise RuntimeError('No video links found on profile page')
     context.log.info(f'Queued {len(final_links)} video requests')
     # Trả về danh sách link video và lượt xem
-    await context.push_data(final_links)
+    await context.push_data(final_links[:10])
     
 # --- Handler xử lý từng video riêng lẻ ---
 @router.handler(label='video')
