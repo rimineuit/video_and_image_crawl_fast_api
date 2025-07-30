@@ -1,74 +1,93 @@
-import requests
-from bs4 import BeautifulSoup
-import json
-import logging
+from playwright.sync_api import sync_playwright
+import time
+# Provided cookies
+cookies = [
+    {
+        "name": "SAPISID",
+        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": False,
+        "secure": True,
+    },
+    {
+        "name": "NID",
+        "value": "525=f45g1FRtIM8im85DfAe8dzNKNTxUok3m8-MkkEWMiEGPd_H8Tp31TBEepxl9lz-MCb1GZwj4oKektRzXDtF1QtNGrzbFId_OaBKqasPbfNmDCvtnlze04V0DQbS3B-wHvW5mYrZpPHrzN4ADbJXIl_kFbKujKI1RALxK6l5VP_QMDyT7I428YA45qcUQZL8l_O99jrbXSL6h4oJrLPZlUxtAlo7FusM-7JefDAwTCBI9q6cpXnA8a40xhBuS9tPdEf6I_Lrs81mLaf8HSN4tZTJYQtzZ0njUxSEdt3khBklzn3OWKXi1mBTerCkwc6redbRg6AaVkNtAm0WTYCRcsMHSNRDYA0p3C5zoJJVLnqF0JJyIQ-aYDoPa4RDPN6gQBzi_ApRTCwmf5hKSyY8qT5lCDqFij__LavCdkYQuWMUYN9bJPY_4eZ9rwxzMp5quuuJHjBsKCVZriAHB1Xol1XHujvM9D3h330PRn1HJi9xy8kES9nIl6IpY13fk7zRKHRxkiDL48THi2YRjEsDRusBZVbDz2hOcTHoC5Od-DfFYVlng2xvWfY9WcHddBih9g9d7VG02lNyMHLo3t4WCgKPaVfb71ELcFMUHmxGasswoV6ZPx80gMNjEUWPKbgD0Uce3YmI3Hb6VNvDm93gCnG43jwLs_35116XymddDAtLzZdEtBtjlHk59C4F5WlGaaMXLW1hGow5Vvg4x89FMhaWo3NyypJFyBfpaP8s",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": True,
+        "secure": True
+    },
+    {
+        "name": "__Secure-1PAPISID",
+        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": False,
+        "secure": True
+    },
+    {
+        "name": "__Secure-3PAPISID",
+        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": False,
+        "secure": True
+    },
+    {
+        "name": "__Secure-1PSID",
+        "value": "g.a000zQhx5KlXL0XqfQ66xW-zvxggOqo7oGycYl7ycDLy3wwV34R3HZKNMtZCWObgZKwFs2Fv_wACgYKAT0SARYSFQHGX2Mis-vMDIRSczdZfF987FH0ZBoVAUF8yKrx5N-m-TPo3MTPz85FB5oH0076",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": True,
+        "secure": True
+    },
+    {
+        "name": "__Secure-3PSID",
+        "value": "g.a000zQhx5KlXL0XqfQ66xW-zvxggOqo7oGycYl7ycDLy3wwV34R3kwt9XybBpN4UN_7g1-7UqgACgYKAasSARYSFQHGX2MiWxJePD_Lb6A0KDXDsS2Y4RoVAUF8yKqLvWGd-zQkENA9ql1IETcr0076",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": True
+    },
+    {
+        "name": "SSID",
+        "value": "AuRRGo7-hEcSCFwrZ",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "httpOnly": True
+    }
+]
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+def main():
+    with sync_playwright() as p:
+        # Launch browser
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context()
 
-# Define headers to mimic a browser
-headers = {
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "referer": "https://www.tiktok.com/",
-}
+        # Set cookies
+        context.add_cookies(cookies)
+        print("Cookies have been set.")
 
-def scrape_tiktok_video_metadata(video_url):
-    try:
-        # Send request to the video page
-        response = requests.get(video_url, headers=headers)
-        logger.info(f"Received [{response.status_code}] from: {video_url}")
-        
-        if response.status_code != 200:
-            raise Exception(f"Failed request, Status Code {response.status_code}")
+        # Open a new page
+        page = context.new_page()
 
-        # Parse HTML content
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        # Find the script tag with __UNIVERSAL_DATA_FOR_REHYDRATION__
-        script_tag = soup.select_one("script[id='__UNIVERSAL_DATA_FOR_REHYDRATION__']")
-        if not script_tag:
-            raise Exception("Script tag not found")
+        # Navigate to Google Alerts
+        url = "https://www.google.com.vn/alerts"
+        page.goto(url)
 
-        # Parse JSON data
-        json_data = json.loads(script_tag.text)
-        
-        # Navigate to video metadata
-        video_info = json_data.get("__DEFAULT_SCOPE__", {}).get("webapp.video-detail", {}).get("itemInfo", {}).get("itemStruct", {})
-        
-        if not video_info:
-            raise Exception("Video metadata not found")
+        # Wait for the page to load
+        page.wait_for_load_state("domcontentloaded")
+        print(f"Navigated to {url}")
+        time.sleep(100)
+        # Optional: Take a screenshot for debugging
+        page.screenshot(path="google_alerts.png")
+        print("Screenshot saved as google_alerts.png")
 
-        # Extract common metadata fields
-        metadata = {
-            "video_id": video_info.get("id", "N/A"),
-            "description": video_info.get("desc", "N/A"),
-            "create_time": video_info.get("createTime", "N/A"),
-            "author": video_info.get("author", {}).get("uniqueId", "N/A"),
-            "author_nickname": video_info.get("author", {}).get("nickname", "N/A"),
-            "stats": {
-                "digg_count": video_info.get("stats", {}).get("diggCount", 0),
-                "share_count": video_info.get("stats", {}).get("shareCount", 0),
-                "comment_count": video_info.get("stats", {}).get("commentCount", 0),
-                "play_count": video_info.get("stats", {}).get("playCount", 0),
-                "collect_count": video_info.get("stats", {}).get("collectCount", 0),
-            },
-            "music_title": video_info.get("music", {}).get("title", "N/A"),
-            "music_author": video_info.get("music", {}).get("authorName", "N/A"),
-            "video_url": video_info.get("video", {}).get("playAddr", "N/A"),
-            "hashtags": [tag.get("hashtagName", "") for tag in video_info.get("textExtra", []) if tag.get("hashtagName")],
-            "is_ad": video_info.get("isAd", "N/A"),
-        }
+        # Wait for a few seconds to observe the page
+        page.wait_for_timeout(5000)
 
-        return metadata
+        # Close the browser
+        browser.close()
 
-    except Exception as e:
-        logger.error(f"Error scraping video metadata: {e}")
-        return None
-
-# Example usage
-video_url = "https://www.tiktok.com/@username/video/7527651639302425876"
-metadata = scrape_tiktok_video_metadata(video_url)
-
-if metadata:
-    print(json.dumps(metadata, indent=2))
+if __name__ == "__main__":
+    main()
