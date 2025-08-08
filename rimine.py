@@ -1,3 +1,27 @@
+import json
+with open('gg_cookies.json', 'r', encoding='utf-8') as f:
+    cookies = json.load(f)
+
+original_cookies_list = cookies
+
+cookies_for_playwright = []
+for cookie in original_cookies_list:
+    playwright_cookie = {
+        'name': cookie['name'],
+        'value': cookie['value'],
+        'domain': '.google.com.vn',
+        'path': cookie['path'],
+        'expires': cookie['expirationDate'], # Renaming expirationDate to expires for Playwright
+        'httpOnly': cookie['httpOnly'],
+        'secure': cookie['secure'],
+        'sameSite': cookie['sameSite'].replace('no_restriction', 'None').capitalize() if cookie['sameSite'] else "None" # Adjusting 'no_restriction' to 'None' and capitalizing
+    }
+    cookies_for_playwright.append(playwright_cookie)
+
+
+print("Cookies prepared for Playwright:", cookies_for_playwright)
+
+
 from playwright.sync_api import sync_playwright
 import time
 # Provided cookies
@@ -8,7 +32,6 @@ def get_alerts_list(cookies):
         # Launch browser
         browser = p.chromium.launch(headless=False)
         context = browser.new_context()
-
         # Set cookies
         context.add_cookies(cookies)
         print("Cookies have been set.")
@@ -42,51 +65,4 @@ def get_alerts_list(cookies):
         # Close the browser
         browser.close()
         
-def normalize_cookies(cookies: list) -> list:
-    """Chỉ giữ lại cookies có tên trong danh sách cho phép, và chuẩn hóa định dạng."""
-    ALLOWED_COOKIE_NAMES = [
-        "SAPISID",
-        "NID",
-        "__Secure-1PAPISID",
-        "__Secure-3PAPISID",
-        "__Secure-1PSID",
-        "__Secure-3PSID",
-        "SSID"
-    ]
-
-    valid_samesite = {
-        "lax": "Lax",
-        "strict": "Strict",
-        "none": "None",
-        "no_restriction": "None",
-        None: "None"
-    }
-
-    cleaned = []
-    for c in cookies:
-        if c.get("name") not in ALLOWED_COOKIE_NAMES:
-            continue
-
-        cookie = {
-            "name": c["name"],
-            "value": c["value"],
-            "domain": c["domain"],
-            "path": c.get("path", "/"),
-            "expires": float(c.get("expirationDate")),
-            "httpOnly": bool(c.get("httpOnly")),
-            "secure": bool(c.get("secure")),
-            "sameSite": valid_samesite.get(str(c.get("sameSite")).lower(), "Lax")
-        }
-        cleaned.append(cookie)
-
-    return cleaned
-
-import json
-if __name__ == "__main__":
-    with open('gg_cookies.json', 'r', encoding='utf-8') as f:
-        cookies = json.load(f)
-    cookies = normalize_cookies(cookies)
-    get_alerts_list(cookies)
-
-
-
+get_alerts_list(cookies_for_playwright)

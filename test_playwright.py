@@ -1,93 +1,106 @@
 from playwright.sync_api import sync_playwright
 import time
-
-# # Provided cookies
-# cookies = [
-#     {
-#         "domain": ".www.tiktok.com",
-#         "expirationDate": 1777259031,
-#         "hostOnly": False,
-#         "httpOnly": False,
-#         "name": "delay_guest_mode_vid",
-#         "path": "/",
-#         "sameSite": "None",
-#         "secure": True,
-#         "session": False,
-#         "storeId": None,
-#         "value": "5"
-#     },
-#     {
-#         "domain": ".tiktok.com",
-#         "expirationDate": 1786764797,
-#         "hostOnly": False,
-#         "httpOnly": False,
-#         "name": "ttcsid_C97F14JC77U63IDI7U40",
-#         "path": "/",
-#         "sameSite": "None",
-#         "secure": False,
-#         "session": False,
-#         "storeId": None,
-#         "value": "1753067375395::YSuHRgwK3wT89k4b0zFx.2.1753068797013"
-#     },
-#     {
-#         "domain": ".tiktok.com",
-#         "expirationDate": 1784603430.186038,
-#         "hostOnly": False,
-#         "httpOnly": True,
-#         "name": "tt-target-idc-sign",
-#         "path": "/",
-#         "sameSite": "None",
-#         "secure": False,
-#         "session": False,
-#         "storeId": None,
-#         "value": "rrKS8KCvjCucx61CT42l97_GWa5H0umBWUU78suoDBHRgpNk7CwTIAakuvx_yR_2H9l8MZk8DUS6yEbrjOxOEH76SHkReOIhnBZ4hdz8GVdjPhv9rTIVBmqQHTAOBfE05CZp2ffFlpdubJA0U5KnYNHVAaFH_4wcFGDacqIy5PMCOW-bwyRyVYvjQeXkBKHEQQA7PL5nHKn0Buc5pWJ0fzs0ZbuHgD32yl2-QyYMvrNm6FDH6Ubz2mihVcSQVZ9lwQwpLpKtMXlDbXuhdCO4edJXOFAVIHvJuCvQoGCFk_CDOACELZvS3foGzPAKzka0wBcFlRmg_uYiFCabvnhoFYm5UitD2b9Zqu3FCt37UCI2FHSFIr3O2Lp8UxYU3KkUKe2mkT75Ha16DBx4POQC54vn57D93zx5DVUcKv18nwhwq53VfxmpfLYcvLscDKmDmY_EQk7oKOraKK8DdSmgX_g8mfenwT1trOJocqED3DtztNUTZjeuZjCCoGEDT1nc"
-#     },
-#     # Add the rest of the cookies here...
-# ]
+# Provided cookies
+cookies = [
+    {
+        "name": "SAPISID",
+        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1787627391.825662,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    },
+    {
+        "name": "NID",
+        "value": "525=f45g1FRtIM8im85DfAe8dzNKNTxUok3m8-MkkEWMiEGPd_H8Tp31TBEepxl9lz-MCb1GZwj4oKektRzXDtF1QtNGrzbFId_OaBKqasPbfNmDCvtnlze04V0DQbS3B-wHvW5mYrZpPHrzN4ADbJXIl_kFbKujKI1RALxK6l5VP_QMDyT7I428YA45qcUQZL8l_O99jrbXSL6h4oJrLPZlUxtAlo7FusM-7JefDAwTCBI9q6cpXnA8a40xhBuS9tPdEf6I_Lrs81mLaf8HSN4tZTJYQtzZ0njUxSEdt3khBklzn3OWKXi1mBTerCkwc6redbRg6AaVkNtAm0WTYCRcsMHSNRDYA0p3C5zoJJVLnqF0JJyIQ-aYDoPa4RDPN6gQBzi_ApRTCwmf5hKSyY8qT5lCDqFij__LavCdkYQuWMUYN9bJPY_4eZ9rwxzMp5quuuJHjBsKCVZriAHB1Xol1XHujvM9D3h330PRn1HJi9xy8kES9nIl6IpY13fk7zRKHRxkiDL48THi2YRjEsDRusBZVbDz2hOcTHoC5Od-DfFYVlng2xvWfY9WcHddBih9g9d7VG02lNyMHLo3t4WCgKPaVfb71ELcFMUHmxGasswoV6ZPx80gMNjEUWPKbgD0Uce3YmI3Hb6VNvDm93gCnG43jwLs_35116XymddDAtLzZdEtBtjlHk59C4F5WlGaaMXLW1hGow5Vvg4x89FMhaWo3NyypJFyBfpaP8s",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1768977094.677567,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    },
+    {
+        "name": "__Secure-1PAPISID",
+        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1787627391.825698,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    },
+    {
+        "name": "__Secure-3PAPISID",
+        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1787627391.825749,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    },
+    {
+        "name": "__Secure-1PSID",
+        "value": "g.a000zQhx5KlXL0XqfQ66xW-zvxggOqo7oGycYl7ycDLy3wwV34R3HZKNMtZCWObgZKwFs2Fv_wACgYKAT0SARYSFQHGX2Mis-vMDIRSczdZfF987FH0ZBoVAUF8yKrx5N-m-TPo3MTPz85FB5oH0076",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1787627391.825889,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    },
+    {
+        "name": "__Secure-3PSID",
+        "value": "g.a000zQhx5KlXL0XqfQ66xW-zvxggOqo7oGycYl7ycDLy3wwV34R3kwt9XybBpN4UN_7g1-7UqgACgYKAasSARYSFQHGX2MiWxJePD_Lb6A0KDXDsS2Y4RoVAUF8yKqLvWGd-zQkENA9ql1IETcr0076",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1787627391.825927,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    },
+    {
+        "name": "SSID",
+        "value": "AuRRGo7-hEcSCFwrZ",
+        "domain": ".google.com.vn",
+        "path": "/",
+        "expires": 1787627391.825567,
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    }
+]
 
 def main():
-    # Initialize Playwright
     with sync_playwright() as p:
         # Launch browser
-        browser = p.chromium.launch(
-            headless=False,  # Set to True for no UI
-            args=[
-                "--disable-blink-features=AutomationControlled",  # Prevent detection as automated browser
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process"
-            ]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",  # Custom user agent
-            viewport={"width": 1280, "height": 800},  # Set viewport size
-            permissions=["geolocation"],  # Enable geolocation permission
-            geolocation={"latitude": 40.712776, "longitude": -74.005974},  # New York City, USA
-            timezone_id="America/New_York"  # Set timezone to New York
-        )
-
-        # Set cookies in the browser context
-        # context.add_cookies(cookies)
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context()
+        print(cookies)
+        # Set cookies
+        context.add_cookies(cookies)
         print("Cookies have been set.")
 
         # Open a new page
         page = context.new_page()
 
-        # Navigate to the TikTok search URL
-        url = "https://www.tiktok.com/explore"
+        # Navigate to Google Alerts
+        url = "https://www.google.com.vn/alerts"
         page.goto(url)
 
         # Wait for the page to load
         page.wait_for_load_state("domcontentloaded")
         print(f"Navigated to {url}")
-
+        time.sleep(100)
         # Optional: Take a screenshot for debugging
-        page.screenshot(path="tiktok_explore.png")
-        print("Screenshot saved as tiktok_explore.png")
+        page.screenshot(path="google_alerts.png")
+        print("Screenshot saved as google_alerts.png")
 
         # Wait for a few seconds to observe the page
-        time.sleep(5)
+        page.wait_for_timeout(5000)
 
         # Close the browser
         browser.close()

@@ -1,93 +1,25 @@
-from playwright.sync_api import sync_playwright
 import time
-# Provided cookies
-cookies = [
-    {
-        "name": "SAPISID",
-        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": False,
-        "secure": True,
-    },
-    {
-        "name": "NID",
-        "value": "525=f45g1FRtIM8im85DfAe8dzNKNTxUok3m8-MkkEWMiEGPd_H8Tp31TBEepxl9lz-MCb1GZwj4oKektRzXDtF1QtNGrzbFId_OaBKqasPbfNmDCvtnlze04V0DQbS3B-wHvW5mYrZpPHrzN4ADbJXIl_kFbKujKI1RALxK6l5VP_QMDyT7I428YA45qcUQZL8l_O99jrbXSL6h4oJrLPZlUxtAlo7FusM-7JefDAwTCBI9q6cpXnA8a40xhBuS9tPdEf6I_Lrs81mLaf8HSN4tZTJYQtzZ0njUxSEdt3khBklzn3OWKXi1mBTerCkwc6redbRg6AaVkNtAm0WTYCRcsMHSNRDYA0p3C5zoJJVLnqF0JJyIQ-aYDoPa4RDPN6gQBzi_ApRTCwmf5hKSyY8qT5lCDqFij__LavCdkYQuWMUYN9bJPY_4eZ9rwxzMp5quuuJHjBsKCVZriAHB1Xol1XHujvM9D3h330PRn1HJi9xy8kES9nIl6IpY13fk7zRKHRxkiDL48THi2YRjEsDRusBZVbDz2hOcTHoC5Od-DfFYVlng2xvWfY9WcHddBih9g9d7VG02lNyMHLo3t4WCgKPaVfb71ELcFMUHmxGasswoV6ZPx80gMNjEUWPKbgD0Uce3YmI3Hb6VNvDm93gCnG43jwLs_35116XymddDAtLzZdEtBtjlHk59C4F5WlGaaMXLW1hGow5Vvg4x89FMhaWo3NyypJFyBfpaP8s",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": True,
-        "secure": True
-    },
-    {
-        "name": "__Secure-1PAPISID",
-        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": False,
-        "secure": True
-    },
-    {
-        "name": "__Secure-3PAPISID",
-        "value": "Xzvvm-XEA2Thmz5c/AEKR9rl66HFxwzhfG",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": False,
-        "secure": True
-    },
-    {
-        "name": "__Secure-1PSID",
-        "value": "g.a000zQhx5KlXL0XqfQ66xW-zvxggOqo7oGycYl7ycDLy3wwV34R3HZKNMtZCWObgZKwFs2Fv_wACgYKAT0SARYSFQHGX2Mis-vMDIRSczdZfF987FH0ZBoVAUF8yKrx5N-m-TPo3MTPz85FB5oH0076",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": True,
-        "secure": True
-    },
-    {
-        "name": "__Secure-3PSID",
-        "value": "g.a000zQhx5KlXL0XqfQ66xW-zvxggOqo7oGycYl7ycDLy3wwV34R3kwt9XybBpN4UN_7g1-7UqgACgYKAasSARYSFQHGX2MiWxJePD_Lb6A0KDXDsS2Y4RoVAUF8yKqLvWGd-zQkENA9ql1IETcr0076",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": True
-    },
-    {
-        "name": "SSID",
-        "value": "AuRRGo7-hEcSCFwrZ",
-        "domain": ".google.com.vn",
-        "path": "/",
-        "httpOnly": True
-    }
-]
+from google import genai
+from google.genai import types
 
-def main():
-    with sync_playwright() as p:
-        # Launch browser
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
+client = genai.Client(api_key="AIzaSyAJB8QT9yWSEcLyuRGYNHln_3mb_rA6TCA")
 
-        # Set cookies
-        context.add_cookies(cookies)
-        print("Cookies have been set.")
+prompt = """A close up of two people staring at a cryptic drawing on a wall, torchlight flickering.
+A man murmurs, 'This must be it. That's the secret code.' The woman looks at him and whispering excitedly, 'What did you find?'"""
 
-        # Open a new page
-        page = context.new_page()
+operation = client.models.generate_videos(
+    model="veo-3.0-generate-preview",
+    prompt=prompt,
+)
 
-        # Navigate to Google Alerts
-        url = "https://www.google.com.vn/alerts"
-        page.goto(url)
+# Poll the operation status until the video is ready
+while not operation.done:
+    print("Waiting for video generation to complete...")
+    time.sleep(120)
+    operation = client.operations.get(operation)
 
-        # Wait for the page to load
-        page.wait_for_load_state("domcontentloaded")
-        print(f"Navigated to {url}")
-        time.sleep(100)
-        # Optional: Take a screenshot for debugging
-        page.screenshot(path="google_alerts.png")
-        print("Screenshot saved as google_alerts.png")
-
-        # Wait for a few seconds to observe the page
-        page.wait_for_timeout(5000)
-
-        # Close the browser
-        browser.close()
-
-if __name__ == "__main__":
-    main()
+# Download the generated video
+generated_video = operation.response.generated_videos[0]
+client.files.download(file=generated_video.video)
+generated_video.video.save("dialogue_example.mp4")
+print("Generated video saved to dialogue_example.mp4")
