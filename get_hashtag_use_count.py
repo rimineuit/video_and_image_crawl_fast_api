@@ -13,7 +13,7 @@ def log(msg, level="INFO"):
     print(f"[{level}] {msg}")
 
 # ===== Main Crawler =====
-def get_audio_used_count(url):
+def get_hashtag_used_count(url):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -49,7 +49,7 @@ def get_audio_used_count(url):
             # Close banner if present
             try:
                 music_count = page.wait_for_selector(
-                    'h2[data-e2e="music-video-count"]', 
+                    'h2[data-e2e="challenge-vvcount"]', 
                     timeout=10000
                 )
                 text = music_count.inner_text()
@@ -94,8 +94,8 @@ def parse_count(text):
 # ===== CLI Runner =====
 if __name__ == "__main__":
     try:
-        url = str(sys.argv[1])
-        result = parse_count(get_audio_used_count(url))
+        hashtag = str(sys.argv[1])
+        result = parse_count(get_hashtag_used_count(f"https://www.tiktok.com/tag/{hashtag}"))
         log("Result:")
         print(json.dumps({"use_count": result}, indent=2, ensure_ascii=False))
     except Exception as e:

@@ -304,3 +304,47 @@ def get_audio_use_count(body: MusicUrl):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
+
+class Hashtag(BaseModel):
+    hashtag: str  # Danh sách các URL TikTok
+    
+@app.post("/tiktok/get_hashtag_use_count")
+def get_hashtag_use_count(body: Hashtag):
+    hashtag = body.hashtag.strip().rstrip(';')
+    if not hashtag:
+        raise HTTPException(status_code=400, detail="URL không được để trống")
+    cmd = [sys.executable, "get_hashtag_use_count.py", hashtag]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=env
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+    try:
+        # Lấy phần output sau chữ "Result"
+        result_start = proc.stdout.find("Result:\n")
+        if result_start == -1:
+            raise ValueError("Không tìm thấy đoạn 'Result' trong stdout")
+        json_part = proc.stdout[result_start:]  # phần sau "Result"
+        # Tìm JSON mảng đầu tiên bắt đầu bằng [ và kết thúc bằng ]
+        json_match = re.search(r"\{\s*[\s\S]*?\s*\}", json_part)
+        if not json_match:
+            raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
+        json_text = json_match.group(0).replace("\n", "")
+        result_json = json.loads(json_text)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+        )
+    return result_json
