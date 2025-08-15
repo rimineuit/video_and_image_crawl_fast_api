@@ -15,7 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes3 \
     libxi6 \
     libgtk-3-0 \
-    libgdk-pixbuf-2.0-0 \  
     libatk1.0-0 \
     libdbus-1-3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
