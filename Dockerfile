@@ -1,6 +1,6 @@
 FROM python:3.12
 
-# Cài đặt thư viện hệ thống cần thiết cho Playwright trước
+# Cài đặt thư viện hệ thống cần thiết cho Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg \
@@ -15,17 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes3 \
     libxi6 \
     libgtk-3-0 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \  
     libatk1.0-0 \
     libdbus-1-3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Tạo thư mục làm việc
 WORKDIR /app
-# Copy toàn bộ mã nguồn
-COPY . /app
 
-# Copy file requirements trước để tận dụng cache
+# Copy file requirements trước để tận dụng cache layer Docker
 COPY requirements.txt .
 
 # Cài đặt Python packages
@@ -33,11 +31,12 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
     pip install 'crawlee[playwright]'
 
-# Cài đặt Playwright và các trình duyệt liên quan
+# Cài playwright browsers và các dependency
 RUN python -m playwright install && \
     python -m playwright install-deps
 
-
+# Copy toàn bộ mã nguồn
+COPY . /app
 
 ENV PORT=8000
 
