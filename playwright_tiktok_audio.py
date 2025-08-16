@@ -3,11 +3,34 @@ import json
 import gc
 import time
 import sys
+from urllib.parse import unquote, urljoin
+
+BASE_URL = "https://www.tiktok.com/music/"
+
+def extract_song_info(audio_url):
+    """Trích xuất song_name (chữ) và song_id (số cuối) từ audio_url."""
+    try:
+        part = audio_url.split("song/", 1)[1].split("?", 1)[0]
+    except IndexError:
+        return None, None
+
+    decoded = unquote(part)  # decode % -> ký tự thật
+    parts = decoded.rsplit("-", 1)
+
+    if len(parts) == 2 and parts[1].isdigit():
+        song_name_only = parts[0]
+        song_id = parts[1]
+    else:
+        song_name_only = decoded
+        song_id = None
+
+    return song_name_only, song_id
+
 
 # ===== Constants =====
-TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi"
-# BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
-# BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
+TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/music/pc/vi"
+BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
+BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
 
 # ===== Logging =====
 def log(msg, level="INFO"):
@@ -20,7 +43,6 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
         input_field.fill(value)
         page.wait_for_timeout(1000)
         dropdown_item = page.wait_for_selector(option_selector, timeout=5000)
-        page.wait_for_timeout(10000)
         dropdown_item.click()
         page.wait_for_timeout(1000)
         log("Dropdown option selected successfully.")
@@ -30,7 +52,7 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
         return False
 
 # ===== Main Crawler =====
-def crawl_tiktok_videos(url, limit=1000):
+def crawl_tiktok_audio(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -50,12 +72,12 @@ def crawl_tiktok_videos(url, limit=1000):
             java_script_enabled=True
         )
 
-        # def route_filter(route, request):
-        #     if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
-        #         return route.abort()
-        #     return route.continue_()
+        def route_filter(route, request):
+            if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
+                return route.abort()
+            return route.continue_()
 
-        # context.route("**/*", route_filter)
+        context.route("**/*", route_filter)
         page = context.new_page()
 
         try:
@@ -94,9 +116,8 @@ def crawl_tiktok_videos(url, limit=1000):
                 log(f"Lỗi khi kiểm tra ngôn ngữ: {e}", "ERROR")
                 return []
 
-
             try:
-                page.wait_for_selector('blockquote[data-video-id]', timeout=10000)
+                page.wait_for_selector('a.index-mobile_goToDetailBtnWrapper__puubr', timeout=10000)
                 log("Video elements loaded.")
             except:
                 log("Video elements not found. Exiting.", "ERROR")
@@ -107,16 +128,27 @@ def crawl_tiktok_videos(url, limit=1000):
             empty_attempts = 0
 
             while len(collected) < limit:
-                video_elements = page.query_selector_all('blockquote[data-video-id]')
+                video_elements = page.query_selector_all('a.index-mobile_goToDetailBtnWrapper__puubr')
                 new_found = 0
 
                 for el in video_elements[-20:]:  # Only scan the most recent ones
-                    video_id = el.get_attribute("data-video-id")
-                    if video_id and video_id not in seen_ids:
-                        seen_ids.add(video_id)
+                    audio_url = el.get_attribute("href")
+                    if audio_url and audio_url not in seen_ids:
+                        song_name, song_id = extract_song_info(audio_url)
+                        key = song_id or song_name
+                        if key in seen_ids:
+                            continue
+                        seen_ids.add(key)
+
+                        if song_id:
+                            full_url = f"{BASE_URL}{song_name}-{song_id}"
+                        else:
+                            full_url = None
+
                         collected.append({
-                            'video_id': video_id,
-                            'url': f"https://www.tiktok.com/@_/video/{video_id}"
+                            "audio_url": full_url,    # URL TikTok public dạng /music/tên-bài-ID
+                            "song_name": song_name,   # chỉ chữ
+                            "song_id": song_id
                         })
                         new_found += 1
 
@@ -134,7 +166,7 @@ def crawl_tiktok_videos(url, limit=1000):
                 if len(collected) >= limit:
                     break
 
-                view_more = page.query_selector('div[data-testid="cc_contentArea_viewmore_btn"]')
+                view_more = page.query_selector('#ccContentContainer > div.BannerLayout_listWrapper__2FJA_ > div > div:nth-child(2) > div.InduceLogin_induceLogin__pN61i > div > div.ViewMoreBtn_viewMoreBtn__fOkv2 > div')
                 if view_more:
                     view_more.scroll_into_view_if_needed()
                     page.wait_for_timeout(500)
@@ -142,7 +174,7 @@ def crawl_tiktok_videos(url, limit=1000):
                     log("Clicked 'View More' button.")
                     try:
                         page.wait_for_function(
-                            f'document.querySelectorAll("blockquote[data-video-id]").length > {len(seen_ids)}',
+                            f'#ccContentContainer > div.BannerLayout_listWrapper__2FJA_ > div > div:nth-child(2) > div.CommonDataList_listWrap__4ejAT.index-mobile_listWrap__INNh7.SoundList_soundListWrapper__Ab_az > div:nth-child(1) > div > div > a.length > {len(seen_ids)}',
                             timeout=10000
                         )
                     except:
@@ -163,7 +195,7 @@ def crawl_tiktok_videos(url, limit=1000):
 if __name__ == "__main__":
     try:
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-        result = crawl_tiktok_videos(TIKTOK_URL, limit=limit)
+        result = crawl_tiktok_audio(TIKTOK_URL, limit=limit)
         log("Result:")
         print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:

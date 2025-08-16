@@ -348,3 +348,143 @@ def get_hashtag_use_count(body: Hashtag):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
+
+
+import os
+import sys
+import json
+import re
+import subprocess
+from fastapi import HTTPException
+
+@app.post("/tiktok/crawl_audio")
+def crawl_ads(body: TikTokCrawlAdsRequest):
+    # 1) Chuẩn hoá limit
+    try:
+        limit = int(body.limit)
+    except Exception:
+        raise HTTPException(status_code=400, detail="`limit` phải là số nguyên")
+
+    # 2) Ép UTF-8 cho tiến trình con
+    base_env = os.environ.copy()
+    if 'env' in globals() and isinstance(env, dict):
+        base_env.update(env)
+    base_env.update({
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8"
+    })
+
+    cmd = [sys.executable, "playwright_tiktok_audio.py", str(limit)]
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,               # chuyển bytes -> str
+            encoding="utf-8",        # QUAN TRỌNG: ép UTF-8
+            errors="replace",        # tránh UnicodeDecodeError
+            timeout=900,
+            env=base_env
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+
+    if proc.returncode != 0:
+        # Trả stderr đã là UTF-8 nên không vỡ ký tự
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+
+
+
+
+    # 3) Tìm mảng JSON đầu tiên trong stdout bằng cách đếm ngoặc
+    import json
+
+    def extract_first_json_array(text: str) -> str | None:
+        """
+        Tìm mảng JSON đầu tiên trong text bằng JSONDecoder.raw_decode.
+        Bỏ qua những đoạn như '[INFO]' vì không decode được thành JSON.
+        Trả về substring JSON (dạng chuỗi) nếu tìm thấy, ngược lại None.
+        """
+        decoder = json.JSONDecoder()
+
+        # Ưu tiên tìm sau 'Result:' để tránh log lặt vặt phía trước
+        start_pos = text.find("Result:")
+        search_text = text[start_pos:] if start_pos != -1 else text
+
+        for i, ch in enumerate(search_text):
+            if ch == '[':
+                try:
+                    obj, end = decoder.raw_decode(search_text[i:])  # decode từ vị trí '['
+                    if isinstance(obj, list):
+                        return search_text[i:i+end]  # cắt đúng lát JSON
+                except Exception:
+                    continue  # không hợp lệ -> thử '[' kế tiếp
+        return None
+
+    stdout = proc.stdout
+
+    json_text = extract_first_json_array(stdout)
+    if not json_text:
+        raise HTTPException(
+            status_code=500,
+            detail="Không tìm thấy mảng JSON hợp lệ trong stdout.\n--- STDOUT ---\n" + stdout
+        )
+
+    try:
+        result_json = json.loads(json_text)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON: {e}\n--- JSON trích ra ---\n{json_text}\n--- STDOUT ---\n{stdout}"
+        )
+
+    return result_json
+
+
+@app.post("/tiktok/crawl_hashtag")
+def crawl_ads(body: TikTokCrawlAdsRequest):
+    limit = body.limit
+    cmd = [sys.executable, "playwright_tiktok_hashtag.py", str(limit)]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=env
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+        
+    try:
+        # Lấy phần output sau chữ "Result"
+        result_start = proc.stdout.find("Result:\n")
+        if result_start == -1:
+            raise ValueError("Không tìm thấy đoạn 'Result' trong stdout")
+
+        json_part = proc.stdout[result_start:]  # phần sau "Result"
+        # Tìm JSON mảng đầu tiên bắt đầu bằng [ và kết thúc bằng ]
+        json_match = re.search(r"\[\s*{[\s\S]*?}\s*\]", json_part)
+        
+        if not json_match:
+            raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
+
+        json_text = json_match.group(0).replace("\n", "")
+        result_json = json.loads(json_text)
+
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+        )
+    return result_json
