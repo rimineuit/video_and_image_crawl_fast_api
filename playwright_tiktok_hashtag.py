@@ -117,15 +117,17 @@ COOKIE_FILE = "tiktok_cookies.json"  # đường dẫn đến file JSON bạn đ
 def crawl_tiktok_audio(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process"
-            ]
-        )
+        headless=True,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-web-security",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--proxy-server=http://27.79.213.13:16000"  # 👈 chèn proxy ở đây
+        ]
+    )
+
 
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
