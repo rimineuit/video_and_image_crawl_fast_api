@@ -111,23 +111,69 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
         log(f"Dropdown selection failed: {e}", "ERROR")
         return False
 
-# ===== Main Crawler =====
-COOKIE_FILE = "tiktok_cookies.json"  # đường dẫn đến file JSON bạn đưa ở trên
+# # ===== Main Crawler =====
+# COOKIE_FILE = "tiktok_cookies.json"  # đường dẫn đến file JSON bạn đưa ở trên
 
+# ===== Helper: bấm View More cho đến khi thấy thêm item =====
+def click_view_more_until_new(page, item_selector: str, timeout_ms: int = 8000) -> bool:
+    """
+    Tìm và bấm nút 'Xem thêm'/'View more' (nhiều khả năng là <div> hoặc <button>),
+    rồi chờ đến khi số lượng item (item_selector) tăng lên.
+    Trả về True nếu có item mới xuất hiện, False nếu không tìm thấy nút hoặc không tăng.
+    """
+    before = page.eval_on_selector_all(item_selector, "els => els.length")
+    # Các khả năng của nút View more trên Creative Center (thay đổi class thường xuyên)
+    btn = page.locator(
+        "button:has-text('Xem thêm'), div:has-text('Xem thêm'), "
+        "button:has-text('View more'), div:has-text('View more'), "
+        "div.ViewMoreBtn_viewMoreBtn__fOkv2, "
+        "div:has(span:has-text('Xem thêm')), div:has(span:has-text('View more'))"
+    )
+    if btn.count() == 0:
+        return False
+
+    # Ưu tiên click cái hiển thị trong viewport
+    target = btn.first
+    try:
+        target.scroll_into_view_if_needed()
+        # Tránh bị overlay che
+        page.wait_for_timeout(300)
+        target.click(timeout=3000, force=True)
+    except Exception:
+        # thử thêm lần nữa bằng click JS
+        try:
+            target.evaluate("(el) => el.click()")
+        except Exception:
+            return False
+
+    # Chờ số lượng item tăng
+    try:
+        page.wait_for_function(
+            """(sel, before) => document.querySelectorAll(sel).length > before""",
+            arg=(item_selector, before),
+            timeout=timeout_ms,
+        )
+        return True
+    except Exception:
+        # Có thể trang load chậm, đợi thêm một nhịp ngắn rồi kiểm tra lại
+        page.wait_for_timeout(1500)
+        after = page.eval_on_selector_all(item_selector, "els => els.length")
+        return after > before
+
+
+# ===== Main Crawler (đổi phần load thêm từ scroll -> click View more) =====
 def crawl_tiktok_audio(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-        headless=True,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-web-security",
-            "--disable-features=IsolateOrigins,site-per-process",
-            "--proxy-server=http://27.79.213.13:16000"  # 👈 chèn proxy ở đây
-        ]
-    )
-
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process",
+            ]
+        )
 
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
@@ -136,72 +182,69 @@ def crawl_tiktok_audio(url, limit=1000):
             java_script_enabled=True
         )
 
-        # === NẠP COOKIES TRƯỚC KHI MỞ TRANG ===
-        try:
-            cookies = load_cookies_for_playwright(
-                COOKIE_FILE,
-                for_domains=["ads.tiktok.com", ".tiktok.com"]
-            )
-            if cookies:
-                context.add_cookies(cookies)
-                log(f"Loaded {len(cookies)} cookies into context.")
-            else:
-                log("No cookies loaded (empty after filtering).", "WARN")
-        except Exception as e:
-            log(f"Failed to load cookies: {e}", "ERROR")
+        # Block bớt tài nguyên phụ (giữ nguyên như code của bạn)
+        BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
+        BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
+
         def route_filter(route, request):
             if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
                 return route.abort()
             return route.continue_()
-        
+
         context.route("**/*", route_filter)
         page = context.new_page()
+
         try:
             page.goto(url)
             page.wait_for_load_state("domcontentloaded")
             log(f"Navigated to {url}")
 
-            try:
-                page.wait_for_selector('span.CardPc_titleText__RYOWo', timeout=10000)
-                log("Video elements loaded.")
-            except:
-                log("Video elements not found. Exiting.", "ERROR")
-                return []
-            
-            page.wait_for_timeout(5000)  # Đợi chút để các video đầu tiên tải xong
+            ITEM_SELECTOR = "span.CardPc_titleText__RYOWo"
 
-            collected = []
-            seen_ids = set()
-            empty_attempts = 0
+            try:
+                page.wait_for_selector(ITEM_SELECTOR, timeout=10000)
+                log("Hashtag elements loaded.")
+            except:
+                log("Hashtag elements not found. Exiting.", "ERROR")
+                return []
+
+            page.wait_for_timeout(2000)  # cho trang ổn định
+
+            collected, seen_ids, empty_attempts = [], set(), 0
 
             while len(collected) < limit:
-                video_elements = page.query_selector_all('span.CardPc_titleText__RYOWo')
+                # Lấy item hiện có
+                items = page.query_selector_all(ITEM_SELECTOR)
                 new_found = 0
-
-                for el in video_elements[-20:]:  # Chỉ check các phần tử mới nhất
-                    hashtag = el.inner_text().strip()
+                for el in items[-40:]:  # quét lô gần nhất
+                    hashtag = (el.inner_text() or "").strip()
                     if hashtag and hashtag not in seen_ids:
                         seen_ids.add(hashtag)
                         collected.append({"hashtag": hashtag})
                         new_found += 1
+                        if len(collected) >= limit:
+                            break
 
                 if new_found == 0:
                     empty_attempts += 1
-                    log(f"No new videos found. Attempt {empty_attempts}/3")
-                    if empty_attempts >= 3:
-                        log("No new videos for 3 consecutive attempts. Stopping.")
-                        break
+                    log(f"No new items found. Attempt {empty_attempts}/3")
                 else:
                     empty_attempts = 0
 
-                log(f"Collected {len(collected)} / {limit} videos...")
+                log(f"Collected {len(collected)} / {limit} hashtags...")
 
-                if len(collected) < limit:
-                    # Scroll xuống để load thêm
-                    page.mouse.wheel(0, 1500)  
-                    page.wait_for_timeout(2000)  # Chờ dữ liệu mới load
-                else:
+                if len(collected) >= limit:
                     break
+
+                # Thay vì scroll, bấm View more
+                clicked = click_view_more_until_new(page, ITEM_SELECTOR, timeout_ms=10000)
+                if not clicked:
+                    # Không còn nút hoặc bấm không ra item mới -> dừng
+                    if empty_attempts >= 3:
+                        log("No new items after multiple attempts. Stopping.")
+                        break
+                    # Cho 1 nhịp nhỏ rồi thử vòng sau
+                    page.wait_for_timeout(1200)
 
                 gc.collect()
 
@@ -211,9 +254,11 @@ def crawl_tiktok_audio(url, limit=1000):
             context.close()
             browser.close()
 
-# ===== CLI Runner =====
+
+# ===== CLI Runner (giữ nguyên) =====
 if __name__ == "__main__":
     try:
+        TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/vi"
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
         result = crawl_tiktok_audio(TIKTOK_URL, limit=limit)
         log("Result:")

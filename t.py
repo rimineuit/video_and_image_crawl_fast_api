@@ -1,21 +1,21 @@
-import socket
+import json
+import requests
 
-ip = "27.79.213.13"
-ports = [16000]
+# Giả sử file tên proxies.json
+with open("proxies.json", "r") as f:
+    proxy_list = json.load(f)
 
-def check_port(ip, port, timeout=3):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
+test_url = "https://httpbin.org/ip"
+
+for item in proxy_list:
+    ip = item["ip_address"]
+    port = item["port"]
+    proxy = f"http://{ip}:{port}"
+
     try:
-        sock.connect((ip, port))
-        return True
-    except:
-        return False
-    finally:
-        sock.close()
-
-for port in ports:
-    if check_port(ip, port):
-        print(f"✅ Port {port} mở trên {ip}")
-    else:
-        print(f"❌ Port {port} đóng hoặc không phản hồi")
+        r = requests.get(test_url,
+                         proxies={"http": proxy, "https": proxy},
+                         timeout=5)
+        print(proxy, "✅ OK", "->", r.json())
+    except Exception as e:
+        print(proxy, "❌ FAILED")
