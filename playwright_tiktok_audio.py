@@ -52,7 +52,7 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
         return False
 
 # ===== Main Crawler =====
-def crawl_tiktok_audio(url, limit=1000):
+def crawl_tiktok_audio(url, limit=1000, period='7'):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -116,6 +116,22 @@ def crawl_tiktok_audio(url, limit=1000):
                 log(f"Lỗi khi kiểm tra ngôn ngữ: {e}", "ERROR")
                 return []
 
+            page.wait_for_selector('#soundPeriodSelect > span > div > div', timeout=10000)
+
+            period_button = page.query_selector('#soundPeriodSelect > span > div > div')
+            if period_button:
+                period_button.click()
+                page.wait_for_selector(f"div.creative-component-single-line:has-text('{period} ngày qua')", timeout=5000)
+
+
+                month_period = page.query_selector(f"div.creative-component-single-line:has-text('{period} ngày qua')")
+                if month_period:
+                    month_period.click()
+                    log(f"Đã chọn khoảng thời gian '{period}'.")
+            else:
+                log("Không tìm thấy nút chọn khoảng thời gian.", "ERROR")
+                return []
+            
             try:
                 page.wait_for_selector('a.index-mobile_goToDetailBtnWrapper__puubr', timeout=10000)
                 log("Video elements loaded.")
@@ -190,14 +206,134 @@ def crawl_tiktok_audio(url, limit=1000):
         finally:
             context.close()
             browser.close()
+import os
+import re
+import sys
+from typing import List, Dict, Tuple, Optional
+import psycopg2
+from psycopg2.extras import execute_values
+from dotenv import load_dotenv
+
+def parse_song_from_url(audio_url: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Cố gắng lấy (song_name, song_id) từ audio_url của TikTok.
+    Ví dụ:
+      https://www.tiktok.com/music/Xuân-Yêu-Thương-Remix-7321021459302926338
+      -> ("Xuân-Yêu-Thương-Remix", "7321021459302926338")
+    """
+    if not audio_url:
+        return None, None
+    try:
+        part = audio_url.split("/music/", 1)[1].split("?", 1)[0]
+    except IndexError:
+        return None, None
+
+    # Tìm cụm số ở cuối (song_id)
+    m = re.search(r"-([0-9]{6,})$", part)
+    if m:
+        song_id = m.group(1)
+        song_name = part[: m.start()]  # phần trước cụm số
+        # Bỏ đuôi dấu '-' nếu có
+        if song_name.endswith('-'):
+            song_name = song_name[:-1]
+        return song_name, song_id
+    else:
+        # Không có số ở cuối -> chỉ lấy tên
+        return part, None
+
+def normalize_text(s: Optional[str]) -> str:
+    return (s or "").strip()
+
+def save_trending_music(musics: List[Dict[str, str]], period) -> None:
+    """
+    Ghi vào tiktok_trends_music(audio_url, song_name, song_id, ranking).
+    - ranking = vị trí theo thứ tự input (1-based).
+    - Tự parse song_name/song_id từ audio_url nếu thiếu.
+    - Loại bỏ trùng theo song_id trong cùng batch input.
+    """
+    load_dotenv()
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL not found in environment (.env).")
+
+    rows = []
+    seen_ids = set()
+
+    for idx, item in enumerate(musics, start=1):
+        audio_url = normalize_text(item.get("audio_url"))
+        song_name = normalize_text(item.get("song_name"))
+        song_id   = normalize_text(item.get("song_id"))
+
+        # Điền thiếu từ URL nếu cần
+        if not song_id or not song_name:
+            parsed_name, parsed_id = parse_song_from_url(audio_url)
+            if not song_name and parsed_name:
+                song_name = parsed_name
+            if not song_id and parsed_id:
+                song_id = parsed_id
+
+        # Bỏ qua nếu thiếu URL hoặc song_id (định danh)
+        if not audio_url or not song_id:
+            continue
+
+        # Tránh trùng song_id trong cùng batch
+        if song_id in seen_ids:
+            continue
+        seen_ids.add(song_id)
+
+        rows.append((audio_url, song_name, song_id, idx))
+
+    if not rows:
+        print("No valid music rows to insert.")
+        return
+
+    conn = psycopg2.connect(db_url)
+    conn.autocommit = False
+    try:
+        with conn.cursor() as cur:
+            # Tạo bảng nếu chưa có
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tiktok_trends_music (
+                    id BIGSERIAL PRIMARY KEY,
+                    audio_url TEXT NOT NULL,
+                    song_name TEXT,
+                    song_id VARCHAR(64),
+                    ranking INT NOT NULL,
+                    period INT NOT NULL DEFAULT 7,
+                    captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # XÓA theo period thay vì truncate toàn bảng
+            cur.execute("DELETE FROM tiktok_trends_music WHERE period = %s;", (period,))
+
+            # Insert batch mới (chèn thêm cột period vào rows)
+            insert_sql = """
+                INSERT INTO tiktok_trends_music (audio_url, song_name, song_id, ranking, period)
+                VALUES %s
+            """
+            execute_values(cur, insert_sql, [row + (period,) for row in rows])
+
+        conn.commit()
+        print(f"Inserted {len(rows)} trending music rows.")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 # ===== CLI Runner =====
 if __name__ == "__main__":
     try:
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-        result = crawl_tiktok_audio(TIKTOK_URL, limit=limit)
-        log("Result:")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        for i in [7,30,120]:
+            period = i
+            log(f"Starting crawl with limit={limit} and period={period} days...")
+            result = crawl_tiktok_audio(TIKTOK_URL, limit=limit, period = period)
+            
+            save_trending_music(result, period)
+        # log("Result:")
+        # print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)

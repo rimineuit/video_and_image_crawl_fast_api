@@ -488,3 +488,52 @@ def crawl_ads(body: TikTokCrawlAdsRequest):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
+class TikTokCrawlCommentsRequest(BaseModel):
+    url: str
+    limit: int = 100
+@app.post("/tiktok/get_comments")
+def crawl_ads(body: TikTokCrawlCommentsRequest):
+    limit = body.limit
+    url = body.url.strip().rstrip(';')
+    cmd = [sys.executable, "get_comments.py", url, str(limit)]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            encoding="utf-8",    # <- ép cha decode UTF-8
+            errors="replace",
+            env=env
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+        
+    try:
+        # Lấy phần output sau chữ "Result"
+        result_start = proc.stdout.find("Result:\n")
+        if result_start == -1:
+            raise ValueError("Không tìm thấy đoạn 'Result' trong stdout")
+
+        json_part = proc.stdout[result_start:]  # phần sau "Result"
+        # Tìm JSON mảng đầu tiên bắt đầu bằng [ và kết thúc bằng ]
+        json_match = re.search(r"\[\s*{[\s\S]*?}\s*\]", json_part)
+        
+        if not json_match:
+            raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
+
+        json_text = json_match.group(0).replace("\n", "")
+        result_json = json.loads(json_text)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+        )
+    return result_json

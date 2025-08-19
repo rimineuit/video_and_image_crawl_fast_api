@@ -33,12 +33,12 @@ def get_audio_used_count(url):
             java_script_enabled=True
         )
 
-        # def route_filter(route, request):
-        #     if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
-        #         return route.abort()
-        #     return route.continue_()
+        def route_filter(route, request):
+            if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
+                return route.abort()
+            return route.continue_()
 
-        # context.route("**/*", route_filter)
+        context.route("**/*", route_filter)
         page = context.new_page()
 
         try:

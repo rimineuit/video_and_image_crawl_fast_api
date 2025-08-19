@@ -114,58 +114,13 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
 # # ===== Main Crawler =====
 # COOKIE_FILE = "tiktok_cookies.json"  # đường dẫn đến file JSON bạn đưa ở trên
 
-# ===== Helper: bấm View More cho đến khi thấy thêm item =====
-def click_view_more_until_new(page, item_selector: str, timeout_ms: int = 8000) -> bool:
-    """
-    Tìm và bấm nút 'Xem thêm'/'View more' (nhiều khả năng là <div> hoặc <button>),
-    rồi chờ đến khi số lượng item (item_selector) tăng lên.
-    Trả về True nếu có item mới xuất hiện, False nếu không tìm thấy nút hoặc không tăng.
-    """
-    before = page.eval_on_selector_all(item_selector, "els => els.length")
-    # Các khả năng của nút View more trên Creative Center (thay đổi class thường xuyên)
-    btn = page.locator(
-        "button:has-text('Xem thêm'), div:has-text('Xem thêm'), "
-        "button:has-text('View more'), div:has-text('View more'), "
-        "div.ViewMoreBtn_viewMoreBtn__fOkv2, "
-        "div:has(span:has-text('Xem thêm')), div:has(span:has-text('View more'))"
-    )
-    if btn.count() == 0:
-        return False
-
-    # Ưu tiên click cái hiển thị trong viewport
-    target = btn.first
-    try:
-        target.scroll_into_view_if_needed()
-        # Tránh bị overlay che
-        page.wait_for_timeout(300)
-        target.click(timeout=3000, force=True)
-    except Exception:
-        # thử thêm lần nữa bằng click JS
-        try:
-            target.evaluate("(el) => el.click()")
-        except Exception:
-            return False
-
-    # Chờ số lượng item tăng
-    try:
-        page.wait_for_function(
-            """(sel, before) => document.querySelectorAll(sel).length > before""",
-            arg=(item_selector, before),
-            timeout=timeout_ms,
-        )
-        return True
-    except Exception:
-        # Có thể trang load chậm, đợi thêm một nhịp ngắn rồi kiểm tra lại
-        page.wait_for_timeout(1500)
-        after = page.eval_on_selector_all(item_selector, "els => els.length")
-        return after > before
 
 
 # ===== Main Crawler (đổi phần load thêm từ scroll -> click View more) =====
-def crawl_tiktok_audio(url, limit=1000):
+def crawl_tiktok_hashtag(url, limit=1000):
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -182,9 +137,6 @@ def crawl_tiktok_audio(url, limit=1000):
             java_script_enabled=True
         )
 
-        # Block bớt tài nguyên phụ (giữ nguyên như code của bạn)
-        BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
-        BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
 
         def route_filter(route, request):
             if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
@@ -199,6 +151,21 @@ def crawl_tiktok_audio(url, limit=1000):
             page.wait_for_load_state("domcontentloaded")
             log(f"Navigated to {url}")
 
+            page.wait_for_selector("#hashtagIndustrySelect > span > div > div > div", timeout=5000)
+            type_button = page.query_selector("#hashtagIndustrySelect > span > div > div > div")
+            if type_button:
+                type_button.click()
+                log("Industry dropdown opened.")
+                
+                page.wait_for_selector('body > div:nth-child(5) > div > div > div > div > div > div:nth-child(1)', timeout=5000)
+                fashion_button = page.query_selector('body > div:nth-child(5) > div > div > div > div > div > div:nth-child(1)')
+                if fashion_button:
+                    fashion_button.click()
+                    log("Fashion industry selected.")
+                else:
+                    log("Fashion industry button not found.", "ERROR")
+                    return []
+            
             ITEM_SELECTOR = "span.CardPc_titleText__RYOWo"
 
             try:
@@ -235,16 +202,22 @@ def crawl_tiktok_audio(url, limit=1000):
 
                 if len(collected) >= limit:
                     break
-
-                # Thay vì scroll, bấm View more
-                clicked = click_view_more_until_new(page, ITEM_SELECTOR, timeout_ms=10000)
-                if not clicked:
-                    # Không còn nút hoặc bấm không ra item mới -> dừng
-                    if empty_attempts >= 3:
-                        log("No new items after multiple attempts. Stopping.")
-                        break
-                    # Cho 1 nhịp nhỏ rồi thử vòng sau
-                    page.wait_for_timeout(1200)
+                view_more = page.query_selector('#ccContentContainer > div.HashtagList_listContainer__BvfHH.index-mobile_listContainer__ttJOQ > div > div.InduceLogin_induceLogin__pN61i > div > div.ViewMoreBtn_viewMoreBtn__fOkv2 > div')
+                if view_more:
+                    view_more.scroll_into_view_if_needed()
+                    page.wait_for_timeout(500)
+                    view_more.click()
+                    log("Clicked 'View More' button.")
+                    try:
+                        page.wait_for_function(
+                            f'span.CardPc_titleText__RYOWo.length > {len(seen_ids)}',
+                            timeout=10000
+                        )
+                    except:
+                        page.wait_for_timeout(2000)
+                else:
+                    log("No 'View More' button found. Stopping.")
+                    break
 
                 gc.collect()
 
@@ -253,6 +226,82 @@ def crawl_tiktok_audio(url, limit=1000):
         finally:
             context.close()
             browser.close()
+import os
+import re
+import sys
+from typing import List, Dict
+import psycopg2
+from psycopg2.extras import execute_values
+from dotenv import load_dotenv
+
+def normalize_hashtag(s: str) -> str:
+    """
+    Chuẩn hoá hashtag: bỏ '#', bỏ khoảng trắng, về chữ thường.
+    Ví dụ: "# dotrungnien" -> "dotrungnien"
+    """
+    if s is None:
+        return ""
+    s = s.strip()
+    if s.startswith("#"):
+        s = s[1:]
+    s = s.replace(" ", "")
+    return s.lower()
+
+def save_trending_hashtags(hashtags: List[Dict[str, str]]) -> None:
+    """
+    Ghi vào bảng tiktok_trends_hashtag(hashtag_name, ranking).
+    Ranking = thứ tự xuất hiện (1-based).
+    """
+    load_dotenv()  # đọc .env
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL not found in environment (.env).")
+
+    # Chuẩn bị dữ liệu insert: (hashtag_name, ranking)
+    rows = []
+    seen = set()
+    for idx, item in enumerate(hashtags, start=1):
+        raw = item.get("hashtag") or item.get("hashtag_name") or ""
+        tag = normalize_hashtag(raw)
+        if not tag:
+            continue
+        # tránh trùng trong cùng danh sách input
+        if tag in seen:
+            continue
+        seen.add(tag)
+        rows.append((tag, idx))
+
+    if not rows:
+        print("No valid hashtags to insert.")
+        return
+
+    conn = psycopg2.connect(db_url)
+    conn.autocommit = False
+    try:
+        with conn.cursor() as cur:
+            # Bảng
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tiktok_trends_hashtag (
+                    id BIGSERIAL PRIMARY KEY,
+                    hashtag_name TEXT NOT NULL,
+                    ranking INT NOT NULL,
+                    captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            # XÓA HẾT rồi chèn lại
+            cur.execute("TRUNCATE TABLE tiktok_trends_hashtag;")
+            execute_values(
+                cur,
+                "INSERT INTO tiktok_trends_hashtag (hashtag_name, ranking) VALUES %s",
+                rows
+            )
+        conn.commit()
+        print(f"Inserted {len(rows)} trending hashtags.")
+    except Exception as e:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 # ===== CLI Runner (giữ nguyên) =====
@@ -260,9 +309,13 @@ if __name__ == "__main__":
     try:
         TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/vi"
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-        result = crawl_tiktok_audio(TIKTOK_URL, limit=limit)
-        log("Result:")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        result = crawl_tiktok_hashtag(TIKTOK_URL, limit=limit)
+        
+        
+        save_trending_hashtags(result)
+        
+    #     log("Result:")
+    #     print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)
