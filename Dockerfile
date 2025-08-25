@@ -1,4 +1,5 @@
-FROM python:3.12-bookworm
+FROM python:3.12-slim-bookworm
+
 
 # Cần vài lib nền tảng chung + libgbm1 theo cảnh báo
 RUN apt-get update && apt-get install -y --no-install-recommends \
