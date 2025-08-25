@@ -16,3 +16,4 @@ fastapi
 yt-dlp
 ffmpeg
 pytz
+crawl4ai

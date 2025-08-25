@@ -17,7 +17,8 @@ RUN pip install --upgrade pip && \
     pip install 'crawlee[playwright]' && \
     # Cài browser + đúng bộ phụ thuộc cho bookworm
     python -m playwright install --with-deps chromium
-
+RUN crawl4ai-setup
+RUN crawl4ai-doctor 
 # Copy code
 COPY . /app
 
