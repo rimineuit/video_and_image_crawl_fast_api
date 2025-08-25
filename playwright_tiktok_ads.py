@@ -6,8 +6,8 @@ import sys
 
 # ===== Constants =====
 TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi"
-# BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
-# BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
+BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
+BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
 
 # ===== Logging =====
 def log(msg, level="INFO"):
@@ -50,12 +50,12 @@ def crawl_tiktok_videos(url, limit=1000):
             java_script_enabled=True
         )
 
-        # def route_filter(route, request):
-        #     if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
-        #         return route.abort()
-        #     return route.continue_()
+        def route_filter(route, request):
+            if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
+                return route.abort()
+            return route.continue_()
 
-        # context.route("**/*", route_filter)
+        context.route("**/*", route_filter)
         page = context.new_page()
 
         try:
@@ -166,6 +166,12 @@ if __name__ == "__main__":
         result = crawl_tiktok_videos(TIKTOK_URL, limit=limit)
         log("Result:")
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        filename = f"trend_videos.json"
+
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        print(f"Kết quả đã lưu vào {filename}")
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)

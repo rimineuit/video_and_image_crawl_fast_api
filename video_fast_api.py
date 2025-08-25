@@ -537,3 +537,33 @@ def crawl_ads(body: TikTokCrawlCommentsRequest):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
+class EasyCrawlRequest(BaseModel):
+    url: str
+    type_output: str = "html"
+@app.post("/get_html")
+def crawl_easy(body: EasyCrawlRequest):
+    url = body.url
+    type_output = body.type_output
+    try:
+        result = subprocess.run(
+            [sys.executable, "get_html.py", url, type_output],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+            encoding='utf-8'
+        )
+        matches = re.findall(r"\{.*\}", result.stdout, re.DOTALL)
+        json_str = matches[-1] if matches else None
+        if not json_str:
+            return {
+                "error": "Không tìm thấy JSON trong stdout",
+                "stdout": result.stdout
+            }
+        return json.loads(json_str)
+    except subprocess.CalledProcessError as e:
+        return {"error": "Script lỗi", "details": e.stderr}
+    except Exception as e:
+        return {"error": "Lỗi không xác định", "details": str(e)}
+    
