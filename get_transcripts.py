@@ -1,65 +1,58 @@
 # get_transcripts.py
-import json
 import subprocess
-import os
 import sys
+import json
 from pathlib import Path
-
-INPUT_FILE = "trend_videos.json"
-OUTPUT_DIR = Path("transcripts")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+import tempfile
 
 def run(cmd):
-    print("Running:", " ".join(cmd))
     return subprocess.run(cmd, check=True, capture_output=True, text=True)
 
-# Đảm bảo yt-dlp có trong môi trường hiện tại
-try:
-    run([sys.executable, "-m", "yt_dlp", "--version"])
-except subprocess.CalledProcessError:
-    print("[INFO] Installing yt-dlp into current venv...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"])
+def vtt_to_text(vtt_path: Path) -> str:
+    """Chuyển file VTT thành transcript text"""
+    print(f"Processing VTT file: {vtt_path}")
+    lines = []
+    with open(vtt_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("WEBVTT") or "-->" in line:  # bỏ metadata & timestamp
+                continue
+            lines.append(line)
+    return " ".join(lines)
 
-with open(INPUT_FILE, "r", encoding="utf-8") as f:
-    videos = json.load(f)
+def download_transcript(url: str) -> str:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outtmpl = str(Path(tmpdir) / "sub.%(ext)s")
 
-for v in videos:
-    video_id = v["video_id"]
-    url = v["url"]
+        # thử phụ đề thường
+        cmd = [sys.executable, "-m", "yt_dlp", "--skip-download",
+               "--write-sub", "--sub-lang", "vie-VN", "--sub-format", "vtt",
+               "-o", outtmpl, url]
+        try:
+            run(cmd)
+        except subprocess.CalledProcessError:
+            # fallback auto-sub
+            cmd = [sys.executable, "-m", "yt_dlp", "--skip-download",
+                   "--write-auto-sub", "--sub-lang", "vie-VN", "--sub-format", "vtt",
+                   "-o", outtmpl, url]
+            try:
+                run(cmd)
+            except subprocess.CalledProcessError:
+                return ""
 
-    # Đích: transcripts/<video_id>.vtt
-    outtmpl = str(OUTPUT_DIR / f"{video_id}.%(ext)s")
+        # tìm file .vtt thật sự trong tmpdir
+        vtt_files = list(Path(tmpdir).glob("*.vtt"))
+        if not vtt_files:
+            return ""
+        return vtt_to_text(vtt_files[0])
+    
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python get_transcripts.py <youtube_url>")
+        sys.exit(1)
 
-    # Thử phụ đề người đăng (preferred)
-    cmd = [
-        sys.executable, "-m", "yt_dlp",
-        "--skip-download",
-        "--write-sub",
-        "--sub-lang", "vie-VN",
-        "--sub-format", "vtt",
-        "-o", outtmpl,
-        url
-    ]
-
-    try:
-        run(cmd)
-        print(f"[OK] Saved: {OUTPUT_DIR / (video_id + '.vtt')}")
-        continue
-    except subprocess.CalledProcessError as e:
-        print(f"[WARN] No publisher subtitles or error. stderr:\n{e.stderr}")
-
-    # Fallback: auto subtitles nếu có
-    fallback_cmd = [
-        sys.executable, "-m", "yt_dlp",
-        "--skip-download",
-        "--write-auto-sub",
-        "--sub-lang", "vie-VN",
-        "--sub-format", "vtt",
-        "-o", outtmpl,
-        url
-    ]
-    try:
-        run(fallback_cmd)
-        print(f"[OK][auto] Saved: {OUTPUT_DIR / (video_id + '.vtt')}")
-    except subprocess.CalledProcessError as e:
-        print(f"[FAIL] Could not get subtitles for {video_id}. stderr:\n{e.stderr}")
+    url = sys.argv[1]
+    transcript = download_transcript(url)
+    print(json.dumps({"transcripts": transcript}, ensure_ascii=False))

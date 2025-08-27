@@ -6,8 +6,50 @@ import sys
 
 # ===== Constants =====
 TIKTOK_URL = "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/vi"
-BLOCKED_TYPES = {"image", "font", "stylesheet", "media"}
-BLOCKED_KEYWORDS = {"analytics", "tracking", "collect", "adsbygoogle"}
+# Block resource types - giữ những cần thiết cho scraping
+BLOCKED_TYPES = {
+    "image", 
+    "font", 
+    "stylesheet", 
+    "media",
+    "websocket",  # real-time connections không cần
+    "manifest",   # app manifests
+    "texttrack",  # video captions/subtitles
+    "eventsource" # server-sent events
+}
+
+# Block URLs chứa keywords này
+BLOCKED_KEYWORDS = {
+    # Analytics & Tracking
+    "analytics", "tracking", "collect", "adsbygoogle",
+    "googletagmanager", "gtag", "facebook.com/tr", "pixel",
+    "doubleclick", "googlesyndication", "googleadservices",
+    
+    # Social widgets & embeds (không cần cho scraping)
+    "widget", "embed", "share-button", "social",
+    
+    # Ads & Marketing
+    "adsystem", "advertising", "marketing", "campaign",
+    
+    # Monitoring & Error reporting
+    "sentry", "bugsnag", "rollbar", "logrocket", "hotjar",
+    
+    # CDN assets không cần thiết
+    "webfont", "woff", "woff2", "ttf", "eot",
+    
+    # Video/Audio (nếu không cần preview)
+    "mp4", "webm", "ogg", "mp3", "wav",  # uncomment nếu muốn block media files
+}
+
+# Optional: Block specific domains hoàn toàn
+BLOCKED_DOMAINS = {
+    "google-analytics.com",
+    "googletagmanager.com", 
+    "doubleclick.net",
+    "facebook.com",
+    "connect.facebook.net",
+    "analytics.tiktok.com",  # TikTok's own analytics
+}
 
 # ===== Logging =====
 def log(msg, level="INFO"):
@@ -20,7 +62,6 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
         input_field.fill(value)
         page.wait_for_timeout(1000)
         dropdown_item = page.wait_for_selector(option_selector, timeout=5000)
-        page.wait_for_timeout(10000)
         dropdown_item.click()
         page.wait_for_timeout(1000)
         log("Dropdown option selected successfully.")
@@ -30,7 +71,7 @@ def select_dropdown_option(page, placeholder_text, value, option_selector):
         return False
 
 # ===== Main Crawler =====
-def crawl_tiktok_videos(url, limit=1000):
+def crawl_tiktok_videos(url, limit=1000, type_filter="thịnh hành", period="7"):
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -51,8 +92,20 @@ def crawl_tiktok_videos(url, limit=1000):
         )
 
         def route_filter(route, request):
-            if request.resource_type in BLOCKED_TYPES or any(k in request.url.lower() for k in BLOCKED_KEYWORDS):
+            url = request.url.lower()
+            
+            # Block by resource type
+            if request.resource_type in BLOCKED_TYPES:
                 return route.abort()
+            
+            # Block by keywords in URL
+            if any(keyword in url for keyword in BLOCKED_KEYWORDS):
+                return route.abort()
+            
+            # Block by domain (optional)
+            if any(domain in url for domain in BLOCKED_DOMAINS):
+                return route.abort()
+            
             return route.continue_()
 
         context.route("**/*", route_filter)
@@ -79,8 +132,7 @@ def crawl_tiktok_videos(url, limit=1000):
                 "việt nam",
                 'div.byted-select-popover-panel-inner span.byted-high-light:has-text("Việt Nam")'
             )
-            
-            # ===== Kiểm tra đã chọn ngôn ngữ là "Việt Nam" =====
+                        # ===== Kiểm tra đã chọn ngôn ngữ là "Việt Nam" =====
             try:
                 lang_selector = page.wait_for_selector(
                     "#ccModuleBannerWrap div div div div span span span span div span:nth-child(1)",
@@ -93,7 +145,35 @@ def crawl_tiktok_videos(url, limit=1000):
             except Exception as e:
                 log(f"Lỗi khi kiểm tra ngôn ngữ: {e}", "ERROR")
                 return []
+            
+            
+            # 1) Mở dropdown (không gán .wait_for() vào biến)
+            dropdown = page.locator('#ccContentContainer > div.BannerLayout_listWrapper__2FJA_ > div > div.PopularList_listSearcher__Bko2l.index-mobile_listSearcher__rKZAb > div.ListFilter_container__DwDsk.index-mobile_container__3wl4i.PopularList_sorter__N_G9_.index-mobile_filters__LxraM > div:nth-child(1) > div.ListFilter_RightSearchWrap__UyaKk > div > span.byted-select.byted-select-size-md.byted-select-single.byted-can-input-grouped.CcRimlessSelect_ccRimSelector__m4xdd.index-mobile_ccRimSelector__S2lLr.index-mobile_sortWrapSelect__2Yw1N > span > span > span > div')
+            dropdown.click()  # click tự đợi visible + enabled
 
+            # 2) Chọn option theo text - thu hẹp selector để chỉ còn 1 node
+            option = page.locator('div.byted-select-option div', has_text=type_filter).first
+            option.click()
+            page.wait_for_timeout(10000)
+            
+            log(f"Filter type '{type_filter}' selected.")
+            
+            page.wait_for_selector('#tiktokPeriodSelect > span > div > div', timeout=10000)
+
+            period_button = page.query_selector('#tiktokPeriodSelect > span > div > div')
+            if period_button:
+                period_button.click()
+                page.wait_for_selector(f"div.creative-component-single-line:has-text('{period} ngày qua')", timeout=5000)
+
+                month_period = page.query_selector(f"div.creative-component-single-line:has-text('{period} ngày qua')")
+                if month_period:
+                    month_period.click()
+                    log(f"Đã chọn khoảng thời gian '{period}'.")
+            else:
+                log("Không tìm thấy nút chọn khoảng thời gian.", "ERROR")
+                return []
+            
+            page.wait_for_timeout(10000)
 
             try:
                 page.wait_for_selector('blockquote[data-video-id]', timeout=10000)
@@ -158,20 +238,75 @@ def crawl_tiktok_videos(url, limit=1000):
         finally:
             context.close()
             browser.close()
+import os
+import re
+import sys
+from typing import List, Dict, Tuple, Optional
+import psycopg2
+from psycopg2.extras import execute_values
+from dotenv import load_dotenv
 
+
+def save_trending_video_tiktok(videos: List[Dict], period: int, type_filter: str):
+    """Lưu danh sách video TikTok vào PostgreSQL"""
+    if not videos:
+        print("No videos to save.")
+        return
+    load_dotenv()
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL not found in environment (.env).")
+    conn = None
+    try:
+        conn = psycopg2.connect(db_url)
+        cursor = conn.cursor()
+        cursor.execute(
+        "UPDATE tiktok_trend_capture SET ranking = NULL WHERE period = %s AND type_dropdown = %s",
+        (period, type_filter)
+        )
+        conn.commit()
+
+        insert_query = """
+            INSERT INTO tiktok_trend_capture (video_id, url, period, type_dropdown, ranking)
+            VALUES %s
+        """
+        values = [
+            (video['video_id'], video['url'], period, type_filter, video['ranking'])
+            for video in videos
+        ]
+        execute_values(cursor, insert_query, values, page_size=2000)
+        conn.commit()
+
+
+        print(f"Inserted {cursor.rowcount} new videos into the database.")
+
+    except Exception as e:
+        print(f"Database error: {e}")
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+            
+            
 # ===== CLI Runner =====
 if __name__ == "__main__":
     try:
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-        result = crawl_tiktok_videos(TIKTOK_URL, limit=limit)
+        type_filter = sys.argv[2] if len(sys.argv) > 2 else "Thích"
+        period = sys.argv[3] if len(sys.argv) > 3 else "7"
+        result = crawl_tiktok_videos(TIKTOK_URL, limit=limit, type_filter=type_filter, period=period)
+        for idx, item in enumerate(result, start=1):
+            item["ranking"] = idx
+
         log("Result:")
         print(json.dumps(result, indent=2, ensure_ascii=False))
-        filename = f"trend_videos.json"
+        # filename = f"trend_videos.json"   
 
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
+        # with open(filename, "w", encoding="utf-8") as f:
+        #     json.dump(result, f, indent=2, ensure_ascii=False)
 
-        print(f"Kết quả đã lưu vào {filename}")
+        # print(f"Kết quả đã lưu vào {filename}")
+        save_trending_video_tiktok(result, period=int(period), type_filter=type_filter)
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)
