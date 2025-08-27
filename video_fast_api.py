@@ -584,7 +584,8 @@ def get_transcript(body: TranscriptRequest):
             capture_output=True,
             text=True,
             timeout=900,
-            env=env
+            env=env,
+            encoding='utf-8'
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
