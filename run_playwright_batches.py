@@ -3,9 +3,9 @@ import sys
 import time
 
 # ===== Config =====
-periods = [7, 30]
+periods = [7]
 type_filters = ['Thích', 'thịnh hành', 'Lượt chia sẻ', 'Lượt bình luận']
-limit = 300  # chỉnh nếu cần
+limit = 500  # chỉnh nếu cần
 max_retries = 3  # số lần retry tối đa
 
 # ===== Runner =====

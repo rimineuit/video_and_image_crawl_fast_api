@@ -612,3 +612,117 @@ def get_transcript(body: TranscriptRequest):
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
     return result_json
+
+class DBURL(BaseModel):
+    url: str
+    
+
+@app.post("/get_pruned_groups")
+def get_pruned_groups(body: DBURL):
+    url = body.url.strip().rstrip(';')
+    if not url:
+        raise HTTPException(status_code=400, detail="URL không được để trống")
+    cmd = [sys.executable, "groups_pruned.py", "--db-url", url]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=env,
+            encoding='utf-8'
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+    def _extract_first_json_array(s: str) -> str | None:
+        # Tìm và cắt mảng JSON đầu tiên bằng đếm ngoặc an toàn với chuỗi/escape
+        start = s.find('[')
+        if start == -1:
+            return None
+        depth = 0
+        in_str = False
+        esc = False
+        for i in range(start, len(s)):
+            ch = s[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == '\\':
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == '[':
+                    depth += 1
+                elif ch == ']':
+                    depth -= 1
+                    if depth == 0:
+                        return s[start:i+1]
+        return None
+
+    def parse_stdout_to_json(stdout: str):
+        # 1) Thử parse trực tiếp (trường hợp script in JSON thuần)
+        try:
+            return json.loads(stdout)
+        except json.JSONDecodeError:
+            pass
+
+        # 2) Tìm JSON đầu tiên bất kỳ ({...} hoặc [...]) bằng raw_decode
+        dec = json.JSONDecoder()
+        for i, ch in enumerate(stdout):
+            if ch in '[{':
+                try:
+                    obj, end = dec.raw_decode(stdout[i:])
+                    return obj
+                except json.JSONDecodeError:
+                    continue
+
+        # 3) Trường hợp biết producer in RA MỘT MẢNG [...]: dùng match ngoặc
+        arr = _extract_first_json_array(stdout)
+        if arr is not None:
+            return json.loads(arr)
+
+        # 4) Fallback: NDJSON (mỗi dòng là 1 JSON object)
+        items = []
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line or line[0] not in '{[':
+                continue
+            try:
+                items.append(json.loads(line))
+            except Exception:
+                pass
+        if items:
+            return items
+
+        raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
+
+    # ===== Chỗ gọi trong FastAPI =====
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        env=env,
+        encoding='utf-8'
+    )
+
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"Script error: {proc.stderr}")
+
+    try:
+        result_json = parse_stdout_to_json(proc.stdout)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+        )
+
+    return result_json

@@ -248,45 +248,79 @@ from dotenv import load_dotenv
 
 
 def save_trending_video_tiktok(videos: List[Dict], period: int, type_filter: str):
-    """Lưu danh sách video TikTok vào PostgreSQL"""
+    """Lưu danh sách video TikTok vào PostgreSQL (nhanh, đơn giản).
+       Yêu cầu: tiktok_trend_capture_detail(video_id PK, url)"""
     if not videos:
         print("No videos to save.")
         return
+
     load_dotenv()
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise RuntimeError("DATABASE_URL not found in environment (.env).")
-    conn = None
+
+    # dedup theo video_id để tránh chèn trùng không cần thiết
+    seen = set()
+    vids = []
+    for v in videos:
+        vid = v.get("video_id")
+        url = v.get("url")
+        if not vid or not url:
+            continue
+        if vid in seen:
+            continue
+        seen.add(vid)
+        vids.append(v)
+
     try:
-        conn = psycopg2.connect(db_url)
-        cursor = conn.cursor()
-        cursor.execute(
-        "UPDATE tiktok_trend_capture SET ranking = NULL WHERE period = %s AND type_dropdown = %s",
-        (period, type_filter)
-        )
-        conn.commit()
+        with psycopg2.connect(db_url) as conn:
+            with conn.cursor() as cur:
+                # (tùy chọn) tăng tốc commit cho batch này
+                cur.execute("SET LOCAL synchronous_commit TO OFF;")
 
-        insert_query = """
-            INSERT INTO tiktok_trend_capture (video_id, url, period, type_dropdown, ranking)
-            VALUES %s
-        """
-        values = [
-            (video['video_id'], video['url'], period, type_filter, video['ranking'])
-            for video in videos
-        ]
-        execute_values(cursor, insert_query, values, page_size=2000)
-        conn.commit()
+                # 1) UPSERT vào DETAIL trước (2 cột)
+                detail_rows = [(v["video_id"], v["url"]) for v in vids]
+                if detail_rows:
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO tiktok_trend_capture_detail (video_id, url)
+                        VALUES %s
+                        ON CONFLICT (video_id) DO UPDATE SET url = EXCLUDED.url
+                        """,
+                        detail_rows,
+                        template="(%s,%s)",
+                        page_size=5000,
+                    )
 
+                # 2) XÓA capture theo period + type_dropdown
+                cur.execute(
+                    "DELETE FROM tiktok_trend_capture WHERE period=%s AND type_dropdown=%s",
+                    (period, type_filter),
+                )
 
-        print(f"Inserted {cursor.rowcount} new videos into the database.")
+                # 3) INSERT mới toàn bộ capture (không cần ON CONFLICT)
+                capture_rows = [
+                    (v["video_id"], v["url"], period, type_filter, v.get("ranking"))
+                    for v in vids
+                ]
+                if capture_rows:
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO tiktok_trend_capture
+                            (video_id, url, period, type_dropdown, ranking)
+                        VALUES %s
+                        """,
+                        capture_rows,
+                        template="(%s,%s,%s,%s,%s)",
+                        page_size=5000,
+                    )
+
+                print(f"Detail upserted: {len(detail_rows)}, capture inserted: {len(capture_rows)}")
 
     except Exception as e:
         print(f"Database error: {e}")
-    finally:
-        if conn:
-            cursor.close()
-            conn.close()
-            
             
 # ===== CLI Runner =====
 if __name__ == "__main__":
