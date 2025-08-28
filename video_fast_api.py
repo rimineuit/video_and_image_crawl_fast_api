@@ -5,7 +5,11 @@ import json
 import sys
 import os
 import re
-
+from fastapi.responses import Response
+import tempfile
+from pathlib import Path
+from pydantic import BaseModel, Field
+from typing import List, Literal, Optional
 app = FastAPI()
 env = os.environ.copy()
 
@@ -566,9 +570,7 @@ def crawl_easy(body: EasyCrawlRequest):
         return {"error": "Script lỗi", "details": e.stderr}
     except Exception as e:
         return {"error": "Lỗi không xác định", "details": str(e)}
-    
-    
-    
+
 class TranscriptRequest(BaseModel):
     url: str
     
@@ -726,3 +728,77 @@ def get_pruned_groups(body: DBURL):
         )
 
     return result_json
+
+
+class PosterRequest(BaseModel):
+    images: List[str] = Field(..., description="Danh sách URL/path ảnh (lấy tối đa 6)")
+    text: str = Field(..., description="Overlay text")
+    fmt: Literal["jpeg", "png"] = Field("jpeg", description="Định dạng ảnh xuất")
+    quality: Optional[int] = Field(90, description="Chỉ dùng cho JPEG 0–100")
+    scale: int = Field(2, description="Device scale factor khi render ảnh")
+    wait: Literal["load", "domcontentloaded", "networkidle", "commit"] = Field(
+        "networkidle", description="Chiến lược chờ tải trang"
+    )
+    # Nếu poster_generator.py nằm nơi khác, chỉnh tại đây
+    script_path: str = Field("poster_generator.py", description="Đường dẫn script sinh poster")
+
+@app.post("/generate-poster")
+def generate_poster(body: PosterRequest):
+    if not body.images:
+        raise HTTPException(status_code=400, detail="Thiếu danh sách ảnh")
+
+    # Thư mục tạm để chứa html + ảnh => auto cleanup khi ra khỏi with
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        html_path = tmpdir_path / "poster.html"
+        img_ext = "jpg" if body.fmt == "jpeg" else "png"
+        img_path = tmpdir_path / f"poster.{img_ext}"
+
+        # Lắp command gọi script
+        cmd = [sys.executable, body.script_path, *body.images, "-t", body.text, "-o", str(html_path)]
+        if body.fmt == "jpeg":
+            cmd += ["--jpeg", str(img_path)]
+            if body.quality is not None:
+                cmd += ["--quality", str(int(body.quality))]
+        else:
+            cmd += ["--png", str(img_path)]
+
+        # Có thể truyền thêm scale/wait vào script nếu bạn bổ sung tham số tương ứng
+        # Ở đây script đã có --scale/--wait nên ta truyền luôn:
+        cmd += ["--scale", str(int(body.scale)), "--wait", body.wait]
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=900,
+                encoding="utf-8",
+                env=env,  # nếu bạn có biến môi trường riêng, mở dòng này
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+
+        if proc.returncode != 0:
+            err = proc.stderr.decode("utf-8", "replace")  # chỉ để hiển thị lỗi
+            raise HTTPException(status_code=500, detail=f"Script error:\n{err}")
+
+        if not img_path.exists():
+            # fallback: đôi khi người dùng truyền sai fmt, thử dò file còn lại
+            other = tmpdir_path / ("poster.png" if img_ext == "jpg" else "poster.jpg")
+            if other.exists():
+                img_path = other
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Không tìm thấy ảnh đầu ra: {img_path}",
+                )
+
+        # Đọc bytes rồi trả về octet-stream; vì dùng TemporaryDirectory nên file sẽ tự xoá
+        data = img_path.read_bytes()
+
+        # Bạn muốn octet-stream, mình set đúng như yêu cầu
+        headers = {
+            "Content-Disposition": f'inline; filename="{img_path.name}"'
+        }
+        return Response(content=data, media_type="application/octet-stream", headers=headers)
