@@ -4,7 +4,7 @@ import time
 
 # ===== Config =====
 periods = [7]
-type_filters = ['Thích', 'thịnh hành', 'Lượt chia sẻ', 'Lượt bình luận']
+type_filters = ['thịnh hành']
 limit = 500  # chỉnh nếu cần
 max_retries = 3  # số lần retry tối đa
 

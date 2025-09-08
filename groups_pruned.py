@@ -18,15 +18,17 @@ def normalize_db_url(db_url: str) -> str:
 
 def read_data(engine, eer_min: float, duration_max: int) -> pd.DataFrame:
     query = f"""
-        SELECT *
-        FROM tiktok_trend_capture_detail
-        WHERE eer_score > {eer_min}
-          AND (
-                NULLIF(btrim(transcripts),  '') IS NOT NULL
-             OR NULLIF(btrim(description), '') IS NOT NULL
-              )
-          AND duration <= {duration_max}
-        ORDER BY video_id ASC;
+            SELECT d.*
+            FROM tiktok_trend_capture_detail d
+            JOIN tiktok_trend_capture c 
+            ON d.video_id = c.video_id
+            WHERE d.eer_score > {eer_min}
+            AND (
+                    NULLIF(btrim(d.transcripts),  '') IS NOT NULL
+                OR NULLIF(btrim(d.description), '') IS NOT NULL
+                )
+            AND d.duration <= {duration_max}
+            ORDER BY d.video_id ASC;
     """
     df = pd.read_sql_query(query, con=engine, index_col="video_id")
     df.index.name = "id"

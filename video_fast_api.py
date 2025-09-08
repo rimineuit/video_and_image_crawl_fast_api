@@ -774,7 +774,6 @@ def generate_poster(body: PosterRequest):
                 stderr=subprocess.PIPE,
                 timeout=900,
                 encoding="utf-8",
-                env=env,  # nếu bạn có biến môi trường riêng, mở dòng này
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
