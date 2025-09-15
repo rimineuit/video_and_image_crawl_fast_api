@@ -57,10 +57,11 @@ if __name__ == '__main__':
     if len(sys.argv) < 4:
         sys.exit("Usage: python get_tiktok_video_links_and_metadata.py <browser_type> <label> <max_items> <TikTok_URL>")
          
-    tiktok_url = sys.argv[4]
+    tiktok_url = sys.argv[5].strip()
     web = sys.argv[1].strip() if len(sys.argv) > 2 else "firefox"
     label = sys.argv[2].strip() if len(sys.argv) > 3 else "newest"
     max_items = int(sys.argv[3].strip()) if len(sys.argv) > 4 else 30
+    get_comments = sys.argv[4]
     asyncio.run(crawl_links_tiktok(tiktok_url, web, label, max_items))
     
     result = load_all_json_data()
