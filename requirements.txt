@@ -20,3 +20,5 @@ crawl4ai
 pandas
 sqlalchemy
 psycopg2-binary
+
+crawlee[playwright]

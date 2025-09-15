@@ -122,11 +122,20 @@ for f in files:
 print(durations)      
 # Load script
 script_clip = []
+bg_clips = []
 for i in os.listdir(script_dir):
     if i.endswith('.txt'):
         with open(os.path.join(script_dir, i), 'r', encoding='utf-8') as f:
             script = f.read()
-    script_clip.append(TextClip(text=script, font=font, font_size=34,horizontal_align='center',vertical_align='center', color='white', text_align='center', method='caption', size=(700, None)))
+            
+    import textwrap
+
+    wrapped_text = "\n".join(textwrap.wrap(script, width=30))
+    txt = TextClip(text=wrapped_text, font=font, font_size=38, color='white', text_align='center', method='caption', size=(600, None), margin=(5,10))
+    
+    script_clip.append(txt)
+    bg = ColorClip(size=txt.size, color=(0, 0, 0)).with_opacity(0.7)
+    bg_clips.append(bg)
     
 # Load ảnh
 img_clip = []
@@ -134,40 +143,7 @@ for i in os.listdir(imgs_dir):
     if i.endswith('.png'):
         img = ImageClip(os.path.join(imgs_dir, i))
         img_clip.append(img)
-import math
-from PIL import Image
-import numpy
 
-
-def zoom_in_effect(clip, zoom_ratio=0.04):
-    def effect(get_frame, t):
-        img = Image.fromarray(get_frame(t))
-        base_size = img.size
-
-        new_size = [
-            math.ceil(img.size[0] * (1 + (zoom_ratio * t))),
-            math.ceil(img.size[1] * (1 + (zoom_ratio * t)))
-        ]
-
-        # The new dimensions must be even.
-        new_size[0] = new_size[0] + (new_size[0] % 2)
-        new_size[1] = new_size[1] + (new_size[1] % 2)
-
-        img = img.resize(new_size, Image.LANCZOS)
-
-        x = math.ceil((new_size[0] - base_size[0]) / 2)
-        y = math.ceil((new_size[1] - base_size[1]) / 2)
-
-        img = img.crop([
-            x, y, new_size[0] - x, new_size[1] - y
-        ]).resize(base_size, Image.LANCZOS)
-
-        result = numpy.array(img)
-        img.close()
-
-        return result
-
-    return clip.transform(effect)
 # Tạo video từ ảnh, âm thanh và script
 final_clips = []
 tmp = 0
@@ -176,20 +152,26 @@ for i in range(len(img_clip)):
     if i == 0:
         img = img_clip[i].with_start(0).with_duration(durations[i]+0.5).with_effects(
     [vfx.FadeIn(1), vfx.FadeOut(1), afx.AudioFadeIn(1), afx.AudioFadeOut(1)]
-).resized(lambda t: 1.25 - 0.02 * t).with_position(("center", "center"))
+    ).resized(lambda t: 1 + 0.02 * t).with_position(("center", "center"))
         script = script_clip[i].with_start(0).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
+        bg = bg_clips[i].with_start(0).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
         final_clips.append(img)
+        final_clips.append(bg)
         final_clips.append(script)  
-        tmp+=durations[i]+0.5
+
+        tmp+=durations[i]+0.5   
     else:
         img = img_clip[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects(
     [vfx.FadeIn(1), vfx.FadeOut(1), afx.AudioFadeIn(1), afx.AudioFadeOut(1)]
-    ).resized(lambda t: 1.25 - 0.02 * t).with_position(("center", "center"))
+    ).resized(lambda t: 1 + 0.02 * t).with_position(("center", "center"))
         script = script_clip[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
+        bg = bg_clips[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
         final_clips.append(img)
+        final_clips.append(bg)
         final_clips.append(script)
+
         tmp+=durations[i]+0.5
-        
+
 final_video = CompositeVideoClip(final_clips)
 final_video = final_video.with_audio(audio_clip)
-final_video.write_videofile(output_video, fps=60)
+final_video.write_videofile(output_video, fps=5)
