@@ -118,7 +118,7 @@ async def image_upload(body: ImageBody):
 from typing import List
 
 class TikTokBody(BaseModel):
-    urls: List[str]  # Danh sách các URL TikTok
+    url: str  # Danh sách các URL TikTok
     browser_type: str = "chromium"  # Mặc định là Firefox
     label: str = "newest"  # Nhãn mặc định
     max_items: int = 30  # Số lượng video tối đa mỗi trang
@@ -130,11 +130,11 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     browser_type = body.browser_type.strip().lower()
 
     # Nối các URL thành một chuỗi cách nhau bởi dấu cách
-    clean_urls = ' '.join(url.strip().rstrip(';') for url in body.urls)
+    clean_url = body.url.strip().rstrip(';')
     max_items = str(body.max_items).strip()
     script_path = "get_tiktok_video_links_and_metadata.py"
     get_comments = body.get_comments
-    cmd = [sys.executable, script_path, browser_type, label, max_items, get_comments] + clean_urls.split()
+    cmd = [sys.executable, script_path, browser_type, label, max_items, get_comments, clean_url]
     try:
         proc = subprocess.run(
             cmd,
