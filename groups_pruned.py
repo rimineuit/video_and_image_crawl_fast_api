@@ -7,14 +7,12 @@ import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
-
 def normalize_db_url(db_url: str) -> str:
     if db_url.startswith("postgres://"):
         return db_url.replace("postgres://", "postgresql+psycopg2://", 1)
     if db_url.startswith("postgresql://"):
         return "postgresql+psycopg2://" + db_url.split("://", 1)[1]
     return db_url
-
 
 def read_data(engine, eer_min: float, duration_max: int) -> pd.DataFrame:
     query = f"""
@@ -34,7 +32,6 @@ def read_data(engine, eer_min: float, duration_max: int) -> pd.DataFrame:
     df.index.name = "id"
     return df
 
-
 def clean_text_series(desc: pd.Series, tran: pd.Series) -> pd.Series:
     s = (desc.fillna('').astype(str).str.strip() + " " +
          tran.fillna('').astype(str).str.strip())
@@ -47,7 +44,6 @@ def clean_text_series(desc: pd.Series, tran: pd.Series) -> pd.Series:
           .str.strip())
     return s
 
-
 def unique_preserve_order(iterable: Iterable[str]) -> List[str]:
     seen = set()
     out: List[str] = []
@@ -56,7 +52,6 @@ def unique_preserve_order(iterable: Iterable[str]) -> List[str]:
             seen.add(x)
             out.append(x)
     return out
-
 
 def build_ngrams_df(df_text: pd.DataFrame, nmin: int, nmax: int,
                     distinct: bool = True, drop_empty: bool = True) -> pd.DataFrame:
