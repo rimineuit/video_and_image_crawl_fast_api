@@ -119,7 +119,7 @@ from typing import List
 
 class TikTokBody(BaseModel):
     urls: List[str]  # Danh sách các URL TikTok
-    browser_type: str = "firefox"  # Mặc định là Firefox
+    browser_type: str = "chromium"  # Mặc định là Firefox
     label: str = "newest"  # Nhãn mặc định
     max_items: int = 30  # Số lượng video tối đa mỗi trang
     get_comments: str = "False"  # Mặc định không lấy bình luận
@@ -400,9 +400,6 @@ def crawl_ads(body: TikTokCrawlAdsRequest):
             status_code=500,
             detail=f"Lỗi khi chạy script:\n{proc.stderr}"
         )
-
-
-
 
     # 3) Tìm mảng JSON đầu tiên trong stdout bằng cách đếm ngoặc
     import json
