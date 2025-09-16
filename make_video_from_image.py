@@ -168,9 +168,12 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image'):
 
 import shutil
 def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
-    shutil.rmtree(script_dir)
-    shutil.rmtree(audio_dir)
-    shutil.rmtree(image_dir)
+    if os.path.exists(script_dir) and os.path.isdir(script_dir):
+        shutil.rmtree(script_dir)
+    if os.path.exists(audio_dir) and os.path.isdir(audio_dir):
+        shutil.rmtree(audio_dir)
+    if os.path.exists(image_dir) and os.path.isdir(image_dir):
+        shutil.rmtree(image_dir)
 
 def main(id_folder, list_scripts):
     delete_resource()
