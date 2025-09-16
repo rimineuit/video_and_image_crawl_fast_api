@@ -24,3 +24,4 @@ psycopg2-binary
 crawlee[playwright]
 gdown
 google-genai
+moviepy
