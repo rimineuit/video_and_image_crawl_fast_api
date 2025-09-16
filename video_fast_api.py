@@ -800,3 +800,36 @@ def generate_poster(body: PosterRequest):
             "Content-Disposition": f'inline; filename="{img_path.name}"'
         }
         return Response(content=data, media_type="application/octet-stream", headers=headers)
+    
+    
+class MakeVideoRequest(BaseModel):
+    scripts: List[str]
+    id_folder: str
+import shutil
+def delete_resource(script_dir='./cript', audio_dir='./audio', image_dir='./image'):
+    shutil.rmtree(script_dir)
+    shutil.rmtree(audio_dir)
+    shutil.rmtree(image_dir)
+
+from starlette.background import BackgroundTask
+from fastapi.responses import FileResponse
+@app.post("/generate-video")
+def generate_video(body: MakeVideoRequest):
+    scripts = body.scripts
+    id_folder = body.id_folder
+    cmd = [sys.executable, "make_video_from_image.py", id_folder, json.dumps(scripts, ensure_ascii=False)]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        env=env,
+        encoding='utf-8'
+    )
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"Script error: {proc.stderr}")
+    
+    video_path = './audio/my_video.mp4'
+    return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4",background=BackgroundTask(lambda: delete_resource))
+    
+    
