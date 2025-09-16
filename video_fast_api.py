@@ -806,7 +806,7 @@ class MakeVideoRequest(BaseModel):
     scripts: List[str]
     id_folder: str
 import shutil
-def delete_resource(script_dir='./cript', audio_dir='./audio', image_dir='./image'):
+def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
     shutil.rmtree(script_dir)
     shutil.rmtree(audio_dir)
     shutil.rmtree(image_dir)

@@ -166,13 +166,19 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image'):
     final_video = final_video.with_audio(audio_clip)
     final_video.write_videofile(output_video, fps=5)
 
-    
+import shutil
+def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
+    shutil.rmtree(script_dir)
+    shutil.rmtree(audio_dir)
+    shutil.rmtree(image_dir)
 
 def main(id_folder, list_scripts):
+    delete_resource()
     download_folder_and_rename(id_folder)
     save_scripts_to_folder(list_scripts)
     make_audio_from_script()
     make_video()
+    
 import json
 import sys
 if __name__ == "__main__":
