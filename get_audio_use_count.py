@@ -38,7 +38,7 @@ def get_audio_used_count(url):
                 return route.abort()
             return route.continue_()
 
-        context.route("**/*", route_filter)
+        # context.route("**/*", route_filter)
         page = context.new_page()
 
         try:

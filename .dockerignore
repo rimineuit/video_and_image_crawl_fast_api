@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.sqlite3
+video_venv/
+venv/
+.env
+*.mp4
+*.avi
+*.mkv
+*.jpg
+*.png

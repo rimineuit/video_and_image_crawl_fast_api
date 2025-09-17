@@ -65,7 +65,7 @@ from moviepy import *
 import numpy as np
 import contextlib
 
-def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image'):
+def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', fps=30):
     output_video = os.path.join(audio_dir,'my_video.mp4')
     font = "Roboto-SemiBold.ttf"
     output_wav = os.path.join(audio_dir,'output.wav')
@@ -164,7 +164,7 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image'):
 
     final_video = CompositeVideoClip(final_clips)
     final_video = final_video.with_audio(audio_clip)
-    final_video.write_videofile(output_video, fps=5)
+    final_video.write_videofile(output_video, fps=fps)
 
 import shutil
 def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
@@ -175,12 +175,12 @@ def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./ima
     if os.path.exists(image_dir) and os.path.isdir(image_dir):
         shutil.rmtree(image_dir)
 
-def main(id_folder, list_scripts):
+def main(id_folder, list_scripts, fps):
     delete_resource()
     download_folder_and_rename(id_folder)
     save_scripts_to_folder(list_scripts)
     make_audio_from_script()
-    make_video()
+    make_video(fps=fps)
     
 import json
 import sys
@@ -197,5 +197,6 @@ if __name__ == "__main__":
     #                 'Việc hiểu Ngũ Hành giúp ta cân bằng năng lượng, ứng dụng vào màu sắc, hướng nhà để thu hút tài lộc, may mắn.',
     #                 'Hãy áp dụng phong thủy Ngũ Hành để kiến tạo không gian sống hài hòa, bình an và phát triển toàn diện nhé!']
     id = sys.argv[1]
-    list_scripts = json.loads(sys.argv[2])
-    main(id, list_scripts)
+    fps = sys.argv[2]
+    list_scripts = json.loads(sys.argv[3])
+    main(id, list_scripts, fps)

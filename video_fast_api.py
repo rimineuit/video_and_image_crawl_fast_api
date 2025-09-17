@@ -804,6 +804,7 @@ def generate_poster(body: PosterRequest):
     
 class MakeVideoRequest(BaseModel):
     scripts: List[str]
+    fps: int
     id_folder: str
 import shutil
 def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
@@ -817,7 +818,8 @@ from fastapi.responses import FileResponse
 def generate_video(body: MakeVideoRequest):
     scripts = body.scripts
     id_folder = body.id_folder
-    cmd = [sys.executable, "make_video_from_image.py", id_folder, json.dumps(scripts, ensure_ascii=False)]
+    fps = body.fps
+    cmd = [sys.executable, "make_video_from_image.py", id_folder, fps,json.dumps(scripts, ensure_ascii=False)]
     proc = subprocess.run(
         cmd,
         capture_output=True,
