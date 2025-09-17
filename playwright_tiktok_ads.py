@@ -340,7 +340,7 @@ if __name__ == "__main__":
         #     json.dump(result, f, indent=2, ensure_ascii=False)
 
         # print(f"Kết quả đã lưu vào {filename}")
-        save_trending_video_tiktok(result, period=int(period), type_filter=type_filter)
+        # save_trending_video_tiktok(result, period=int(period), type_filter=type_filter)
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)
