@@ -262,15 +262,18 @@ def save_trending_video_tiktok(videos: List[Dict], period: int, type_filter: str
     # dedup theo video_id để tránh chèn trùng không cần thiết
     seen = set()
     vids = []
+    rankings = []
     for v in videos:
         vid = v.get("video_id")
         url = v.get("url")
+        ranking = v.get("ranking")
         if not vid or not url:
             continue
         if vid in seen:
             continue
         seen.add(vid)
         vids.append(v)
+        rankings.append(ranking)
 
     try:
         with psycopg2.connect(db_url) as conn:

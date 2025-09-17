@@ -152,7 +152,7 @@ import sys
 def main():
     parser = argparse.ArgumentParser(description="In JSON của DataFrame groups_pruned (không giới hạn).")
     parser.add_argument("--nmin", type=int, default=2, help="Độ dài n-gram nhỏ nhất (mặc định: 2)")
-    parser.add_argument("--nmax", type=int, default=20, help="Độ dài n-gram lớn nhất (mặc định: 20)")
+    parser.add_argument("--nmax", type=int, default=100, help="Độ dài n-gram lớn nhất (mặc định: 20)")
     parser.add_argument("--eer-min", type=float, default=1.0, help="Ngưỡng eer_score > eer_min (mặc định: 1)")
     parser.add_argument("--duration-max", type=int, default=30, help="Chỉ lấy video có duration <= (mặc định: 30s)")
     parser.add_argument("--min-id-count", type=int, default=2, help="Giữ nhóm xuất hiện ở >= min id (mặc định: 2)")
