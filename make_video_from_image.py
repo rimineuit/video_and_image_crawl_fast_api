@@ -26,6 +26,11 @@ from google import genai
 from google.genai import types
 import wave
 from typing import List
+from moviepy import *
+import numpy as np
+import contextlib
+from natsort import natsorted
+
 def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
    with wave.open(filename, "wb") as wf:
       wf.setnchannels(channels)
@@ -35,7 +40,7 @@ def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
 
 def make_audio_from_script(script_dir='./script', api_key='AIzaSyAUeYtTRNafF4geV_eoO7JimqkLCcHhokU', voice_name='Sulafat', audio_dir='./audio'):
     os.mkdir(audio_dir)
-    for f in natsort(os.listdir(script_dir)):
+    for f in natsorted(os.listdir(script_dir)):
         with open(os.path.join(script_dir, f), 'r', encoding='utf-8') as file:
             script = file.read()
         
@@ -61,10 +66,7 @@ def make_audio_from_script(script_dir='./script', api_key='AIzaSyAUeYtTRNafF4geV
         wave_file(os.path.join(audio_dir, file_name), data) # Saves the file to current directory
     
 # Tạo video
-from moviepy import *
-import numpy as np
-import contextlib
-from natsort import natsorted
+
 
 def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', fps=30):
     output_video = os.path.join(audio_dir,'my_video.mp4')
