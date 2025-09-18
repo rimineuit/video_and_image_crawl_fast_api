@@ -25,3 +25,4 @@ crawlee[playwright]
 gdown
 google-genai
 moviepy
+natsort

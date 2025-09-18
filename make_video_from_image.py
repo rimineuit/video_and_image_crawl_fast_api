@@ -180,10 +180,10 @@ def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./ima
         shutil.rmtree(image_dir)
 
 def main(id_folder, list_scripts, fps):
-    # delete_resource()
-    # download_folder_and_rename(id_folder)
-    # save_scripts_to_folder(list_scripts)
-    # make_audio_from_script()
+    delete_resource()
+    download_folder_and_rename(id_folder)
+    save_scripts_to_folder(list_scripts)
+    make_audio_from_script()
     make_video(fps=fps)
     
 import json
