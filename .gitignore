@@ -3,3 +3,7 @@ storage
 video
 .env
 dl.py
+audio
+image
+script
+*.mp4

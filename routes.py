@@ -94,7 +94,7 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
         
     collected = {}
     retries = 0
-    MAX_RETRIES = 10
+    MAX_RETRIES = 3
 
     while len(collected) < limit and retries < MAX_RETRIES:
         links = await extract_video_metadata(context.page)

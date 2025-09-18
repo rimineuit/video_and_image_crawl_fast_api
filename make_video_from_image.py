@@ -35,7 +35,7 @@ def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
 
 def make_audio_from_script(script_dir='./script', api_key='AIzaSyAUeYtTRNafF4geV_eoO7JimqkLCcHhokU', voice_name='Sulafat', audio_dir='./audio'):
     os.mkdir(audio_dir)
-    for f in os.listdir(script_dir):
+    for f in natsort(os.listdir(script_dir)):
         with open(os.path.join(script_dir, f), 'r', encoding='utf-8') as file:
             script = file.read()
         
@@ -64,6 +64,7 @@ def make_audio_from_script(script_dir='./script', api_key='AIzaSyAUeYtTRNafF4geV
 from moviepy import *
 import numpy as np
 import contextlib
+from natsort import natsorted
 
 def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', fps=30):
     output_video = os.path.join(audio_dir,'my_video.mp4')
@@ -72,7 +73,9 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
     """Nối list audio thành một audio duy nhất"""
     def merge_audio(audio_dir=audio_dir, silence=0.5, ouput_wav=output_wav):
     # Danh sách các file wav
-        wav_files = [os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.wav')]
+        wav_files = natsorted(
+    [os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.wav')]
+)
         # Load âm thanh
         with wave.open(ouput_wav, "wb") as out:
             # lấy thông số từ file đầu tiên
@@ -96,7 +99,7 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
     """Lấy durations audio để chỉnh sửa video"""
     def get_durations(audio_dir):
         durations = []
-        wav_files = [os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.wav')]
+        wav_files = natsorted([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.wav')])
         for f in wav_files:
             with contextlib.closing(wave.open(f, 'rb')) as w:
                 frames = w.getnframes()
@@ -105,6 +108,7 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
                 durations.append(duration)  
     
         return durations
+    
     durations = get_durations(audio_dir)
     
     merge_audio()
@@ -113,7 +117,7 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
     # Load script
     script_clip = []
     bg_clips = []
-    for i in os.listdir(script_dir):
+    for i in natsorted(os.listdir(script_dir)):
         if i.endswith('.txt'):
             with open(os.path.join(script_dir, i), 'r', encoding='utf-8') as f:
                 script = f.read()
@@ -129,7 +133,7 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
         
     # Load ảnh
     img_clip = []
-    for i in os.listdir(image_dir):
+    for i in natsorted(os.listdir(image_dir)):
         if i.endswith('.png'):
             img = ImageClip(os.path.join(image_dir, i))
             img_clip.append(img)
@@ -146,8 +150,8 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
             script = script_clip[i].with_start(0).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             bg = bg_clips[i].with_start(0).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             final_clips.append(img)
-            final_clips.append(bg)
-            final_clips.append(script)  
+            # final_clips.append(bg)
+            # final_clips.append(script)  
 
             tmp+=durations[i]+0.5   
         else:
@@ -157,8 +161,8 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
             script = script_clip[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             bg = bg_clips[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             final_clips.append(img)
-            final_clips.append(bg)
-            final_clips.append(script)
+            # final_clips.append(bg)
+            # final_clips.append(script)
 
             tmp+=durations[i]+0.5
 
@@ -176,10 +180,10 @@ def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./ima
         shutil.rmtree(image_dir)
 
 def main(id_folder, list_scripts, fps):
-    delete_resource()
-    download_folder_and_rename(id_folder)
-    save_scripts_to_folder(list_scripts)
-    make_audio_from_script()
+    # delete_resource()
+    # download_folder_and_rename(id_folder)
+    # save_scripts_to_folder(list_scripts)
+    # make_audio_from_script()
     make_video(fps=fps)
     
 import json
@@ -197,6 +201,6 @@ if __name__ == "__main__":
     #                 'Việc hiểu Ngũ Hành giúp ta cân bằng năng lượng, ứng dụng vào màu sắc, hướng nhà để thu hút tài lộc, may mắn.',
     #                 'Hãy áp dụng phong thủy Ngũ Hành để kiến tạo không gian sống hài hòa, bình an và phát triển toàn diện nhé!']
     id = sys.argv[1]
-    fps = sys.argv[2]
+    fps = int(sys.argv[2])
     list_scripts = json.loads(sys.argv[3])
     main(id, list_scripts, fps)
