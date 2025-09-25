@@ -67,8 +67,7 @@ def make_audio_from_script(script_dir='./script', api_key='AIzaSyAUeYtTRNafF4geV
     
 # Tạo video
 
-
-def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', fps=30):
+def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', fps=30, show_script=False):
     output_video = os.path.join(audio_dir,'my_video.mp4')
     font = "Roboto-SemiBold.ttf"
     output_wav = os.path.join(audio_dir,'output.wav')
@@ -139,7 +138,6 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
         if i.endswith('.png'):
             img = ImageClip(os.path.join(image_dir, i))
             img_clip.append(img)
-
     # Tạo video từ ảnh, âm thanh và script
     final_clips = []
     tmp = 0
@@ -152,8 +150,9 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
             script = script_clip[i].with_start(0).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             bg = bg_clips[i].with_start(0).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             final_clips.append(img)
-            # final_clips.append(bg)
-            # final_clips.append(script)  
+            if show_script:
+                final_clips.append(bg)
+                final_clips.append(script)  
 
             tmp+=durations[i]+0.5   
         else:
@@ -163,8 +162,9 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
             script = script_clip[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             bg = bg_clips[i].with_start(tmp).with_duration(durations[i]+0.5).with_effects([vfx.CrossFadeIn(0.5), vfx.CrossFadeOut(0.5)]).with_position(("center", "center"))
             final_clips.append(img)
-            # final_clips.append(bg)
-            # final_clips.append(script)
+            if show_script:
+                final_clips.append(bg)
+                final_clips.append(script) 
 
             tmp+=durations[i]+0.5
 
@@ -181,12 +181,12 @@ def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./ima
     if os.path.exists(image_dir) and os.path.isdir(image_dir):
         shutil.rmtree(image_dir)
 
-def main(id_folder, list_scripts, fps):
+def main(id_folder, list_scripts):
     delete_resource()
     download_folder_and_rename(id_folder)
     save_scripts_to_folder(list_scripts)
     make_audio_from_script()
-    make_video(fps=fps)
+    make_video(fps=30)
     
 import json
 import sys
@@ -204,5 +204,6 @@ if __name__ == "__main__":
     #                 'Hãy áp dụng phong thủy Ngũ Hành để kiến tạo không gian sống hài hòa, bình an và phát triển toàn diện nhé!']
     id = sys.argv[1]
     fps = int(sys.argv[2])
-    list_scripts = json.loads(sys.argv[3])
-    main(id, list_scripts, fps)
+    show_Script = False
+    list_scripts = json.loads(sys.argv[4])
+    main(id_folder=id, list_scripts=list_scripts)

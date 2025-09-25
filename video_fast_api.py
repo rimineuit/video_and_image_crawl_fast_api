@@ -806,6 +806,7 @@ def generate_poster(body: PosterRequest):
 class MakeVideoRequest(BaseModel):
     scripts: List[str]
     fps: str
+    show_script: str
     id_folder: str
 import shutil
 def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
@@ -819,8 +820,10 @@ from fastapi.responses import FileResponse
 def generate_video(body: MakeVideoRequest):
     scripts = body.scripts
     id_folder = body.id_folder
+    show_script = body.show_script
     fps = body.fps
-    cmd = [sys.executable, "make_video_from_image.py", id_folder, fps, json.dumps(scripts, ensure_ascii=False)]
+    cmd = [sys.executable, "make_video_from_image.py", id_folder, fps, show_script , json.dumps(scripts, ensure_ascii=False)]
+    print(cmd)
     proc = subprocess.run(
         cmd,
         capture_output=True,
@@ -834,5 +837,38 @@ def generate_video(body: MakeVideoRequest):
     
     video_path = './audio/my_video.mp4'
     return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4",background=BackgroundTask(lambda: delete_resource))
+    
+    
+
+class GetBatchJobContentGemini(BaseModel):
+    job_name: str
+    gemini_api: str
+    
+from google import genai
+from google.genai import types
+import json
+
+@app.post("/get_batch_job_content_gemini")
+def get_batch_job_content_gemini(body: GetBatchJobContentGemini):
+    job_name = body.job_name
+    gemini_api = body.gemini_api
+    client = genai.Client(api_key=gemini_api)
+    
+    batch_job = client.batches.get(name=job_name)
+    if batch_job.state.name == "JOB_STATE_SUCCEEDED":
+        result = None
+        for i, inline_response in enumerate(batch_job.dest.inlined_responses):
+            result = json.loads(inline_response.response.text)
+        
+        return {
+            "status": batch_job.state.name,
+            "response": result
+        }
+    else:
+        return {
+            "status": batch_job.state.name,
+            "response": "" 
+        }
+
     
     

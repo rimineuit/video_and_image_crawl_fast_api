@@ -151,21 +151,21 @@ def crawl_tiktok_hashtag(url, limit=1000):
             page.wait_for_load_state("domcontentloaded")
             log(f"Navigated to {url}")
 
-            page.wait_for_selector("#hashtagIndustrySelect > span > div > div > div", timeout=5000)
-            type_button = page.query_selector("#hashtagIndustrySelect > span > div > div > div")
-            if type_button:
-                type_button.click()
-                log("Industry dropdown opened.")
+            # page.wait_for_selector("#hashtagIndustrySelect > span > div > div > div", timeout=5000)
+            # type_button = page.query_selector("#hashtagIndustrySelect > span > div > div > div")
+            # if type_button:
+            #     type_button.click()
+            #     log("Industry dropdown opened.")
                 
-                page.wait_for_selector('body > div:nth-child(5) > div > div > div > div > div > div:nth-child(1)', timeout=5000)
-                fashion_button = page.query_selector('body > div:nth-child(5) > div > div > div > div > div > div:nth-child(1)')
-                if fashion_button:
-                    fashion_button.click()
-                    log("Fashion industry selected.")
-                else:
-                    log("Fashion industry button not found.", "ERROR")
-                    return []
-            
+            #     page.wait_for_selector('body > div:nth-child(5) > div > div > div > div > div > div:nth-child(1)', timeout=5000)
+            #     fashion_button = page.query_selector('body > div:nth-child(5) > div > div > div > div > div > div:nth-child(1)')
+            #     if fashion_button:
+            #         fashion_button.click()
+            #         log("Fashion industry selected.")
+            #     else:
+            #         log("Fashion industry button not found.", "ERROR")
+            #         return []
+            time.sleep(5)
             ITEM_SELECTOR = "span.CardPc_titleText__RYOWo"
 
             try:
@@ -319,3 +319,6 @@ if __name__ == "__main__":
     except Exception as e:
         log(f"Unexpected error: {e}", "FATAL")
         sys.exit(1)
+        
+        
+        
