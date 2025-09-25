@@ -6,4 +6,6 @@ dl.py
 audio
 image
 script
+*.mp4downloads/
+*.webm
 *.mp4
