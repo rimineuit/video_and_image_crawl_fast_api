@@ -859,7 +859,7 @@ def get_batch_job_content_gemini(body: GetBatchJobContentGemini):
         for i, inline_response in enumerate(batch_job.dest.inlined_responses):
             result = json.loads(inline_response.response.text)
             usage_tokens = inline_response.response.usage_metadata
-            usage_tokens = usage_tokens.model_dump_json(ensure_ascii=False)
+            usage_tokens = usage_tokens.model_dump()
         return {
             "status": batch_job.state.name,
             "response": result,
