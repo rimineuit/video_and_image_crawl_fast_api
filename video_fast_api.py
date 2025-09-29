@@ -809,12 +809,12 @@ class MakeVideoRequest(BaseModel):
     show_script: str
     id_folder: str
 import shutil
+from fastapi import BackgroundTasks
 def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
     shutil.rmtree(script_dir)
     shutil.rmtree(audio_dir)
     shutil.rmtree(image_dir)
 
-from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
 @app.post("/generate-video")
 def generate_video(body: MakeVideoRequest):
@@ -823,7 +823,6 @@ def generate_video(body: MakeVideoRequest):
     show_script = body.show_script
     fps = body.fps
     cmd = [sys.executable, "make_video_from_image.py", id_folder, fps, show_script , json.dumps(scripts, ensure_ascii=False)]
-    print(cmd)
     proc = subprocess.run(
         cmd,
         capture_output=True,
@@ -836,7 +835,7 @@ def generate_video(body: MakeVideoRequest):
         raise HTTPException(status_code=500, detail=f"Script error: {proc.stderr}")
     
     video_path = './audio/my_video.mp4'
-    return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4",background=BackgroundTask(lambda: delete_resource))
+    return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4", background=BackgroundTasks(lambda: delete_resource))
     
     
 
@@ -859,10 +858,12 @@ def get_batch_job_content_gemini(body: GetBatchJobContentGemini):
         result = None
         for i, inline_response in enumerate(batch_job.dest.inlined_responses):
             result = json.loads(inline_response.response.text)
-        
+            usage_tokens = inline_response.response.usage_metadata
+            usage_tokens = usage_tokens.model_dump_json(ensure_ascii=False)
         return {
             "status": batch_job.state.name,
-            "response": result
+            "response": result,
+            "usage_tokens": usage_tokens
         }
     else:
         return {

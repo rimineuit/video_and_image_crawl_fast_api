@@ -167,7 +167,7 @@ def make_video(script_dir='./script', audio_dir='./audio', image_dir='./image', 
                 final_clips.append(script) 
 
             tmp+=durations[i]+0.5
-
+    
     final_video = CompositeVideoClip(final_clips)
     final_video = final_video.with_audio(audio_clip)
     final_video.write_videofile(output_video, fps=fps)
