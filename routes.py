@@ -85,7 +85,7 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
         raise ValueError('`limit` must be a positive integer')
 
     # Đợi user-post hoặc nút load-more hiển thị
-    await context.page.locator('[data-e2e="user-post-item"]').first.wait_for(timeout=30000)
+    await context.page.locator('[data-e2e="user-post-item"]').first.wait_for(timeout=3000)
 
     collected = {}
     retries = 0
@@ -105,7 +105,7 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
 
         # Scroll xuống và chờ load thêm nội dung
         await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
-        await asyncio.sleep(5)  # Chờ nội dung load xong
+        await asyncio.sleep(3)  # Chờ nội dung load xong
         if len(collected) > length_collected:
             length_collected = len(collected)
             retries = 0  # reset retries if new items found
