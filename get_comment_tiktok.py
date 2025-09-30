@@ -1,12 +1,13 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import time
 from urllib.parse import urljoin
+import sys
+import json
 
 def crawl_comment_threads(
     url: str,
     headless: bool = False,
     max_scrolls: int = 10,
-    click_rounds_per_thread: int = 8,
     base_url: str = "https://www.tiktok.com",
 ):
     """
@@ -15,53 +16,43 @@ def crawl_comment_threads(
       {
         "text": "<comment-level-1 text>",
         "user": {
-            "user_handle": "ha.",
-            "display_name": "ha.",
-            "profile_url": "https://www.tiktok.com/@ha."
+            "user_handle": "...",
+            "display_name": "...",
+            "profile_url": "https://www.tiktok.com/@..."
         },
         "replies": [
           {
             "text": "<comment-level-2 text>",
-            "user": {
-                "user_handle": "...",
-                "display_name": "...",
-                "profile_url": "https://www.tiktok.com/@..."
-            }
+            "user": { ... }
           },
           ...
         ]
       },
       ...
     ]
-    Ghi chú: TikTok không lộ numeric user_id trong DOM trang video. Ở đây dùng handle như ID ổn định.
+    - Nếu không có bình luận: trả về [].
+    - Với mỗi thread: chỉ click 'Xem ... câu trả lời' đúng 1 lần (không chờ).
     """
 
     def _dedupe_preserve_order(items):
         seen = set()
         out = []
         for x in items:
-            key = repr(x)  # dict/list unhashable -> repr để khử trùng lặp sơ bộ
+            key = repr(x)
             if key not in seen:
                 seen.add(key)
                 out.append(x)
         return out
 
-    def _extract_user_from_level(thread, level: int):
-        """
-        Tìm user ở mức level (1 cho cmt gốc, 2 cho reply) trong phạm vi thread/container.
-        Trả về tuple (handle, display_name, profile_url) hoặc (None, None, None).
-        """
+    def _extract_user_from_level(container, level: int):
+        """Lấy (handle, display_name, profile_url) trong phạm vi container cho level 1/2."""
         try:
-            user_box = thread.locator(f'[data-e2e="comment-username-{level}"]').first
-            # a[href="/@handle"]
+            user_box = container.locator(f'[data-e2e="comment-username-{level}"]').first
             link = user_box.locator("a").first
             href = link.get_attribute("href") or ""
-            # handle
             handle = None
             if "/@" in href:
                 handle = href.split("/@")[-1].split("?")[0].strip().strip("/")
-            # display name nằm trong <p> bên trong user_box (nếu có)
-            display_name = None
             try:
                 dn = user_box.locator("p").first.inner_text().strip()
                 display_name = dn or handle
@@ -97,42 +88,51 @@ def crawl_comment_threads(
         page.goto(url, wait_until="domcontentloaded")
         page.wait_for_load_state("domcontentloaded")
 
-        # Đợi 5s rồi bấm Skip nếu có
+        # Đợi 5s rồi bấm Skip (nếu có), scroll nhẹ để kích hoạt lazy-load
         page.wait_for_timeout(5000)
+        page.mouse.wheel(0, 300)
+        page.wait_for_timeout(5000)
+        
         try:
             skip_btn = page.locator("div.TUXButton-label:has-text('Skip')")
             if skip_btn.first.is_visible():
-                skip_btn.first.click(timeout=2000)
-                page.wait_for_timeout(1000)
+                skip_btn.first.click(timeout=1500)
         except Exception:
             pass
 
-        # Chờ ít nhất 1 comment xuất hiện
+        # Thử chờ comment xuất hiện, nếu không có -> trả [] luôn
         top_level_any = page.locator('span[data-e2e="comment-level-1"]')
         try:
-            top_level_any.first.wait_for(timeout=15000)
-        except PlaywrightTimeoutError:
-            page.mouse.wheel(0, 600)
-            page.wait_for_timeout(3000)
             top_level_any.first.wait_for(timeout=10000)
+        except PlaywrightTimeoutError:
+            # Không có bình luận
+            context.close()
+            browser.close()
+            return []
 
-        # Cuộn để load đủ các thread (wrapper của từng cmt gốc)
-        # Lưu ý: lớp hash có thể đổi; dùng 'DivCommentObjectWrapper' theo mẫu e16z10169
-        thread_selector = "div.e16z10169"
+        # Cuộn để load thêm các thread (container của cmt gốc)
+        thread_selector = "div.e16z10169"  # DivCommentObjectWrapper (hash có thể đổi)
         threads = page.locator(thread_selector)
 
         scrolls = 0
-        last_count = 0
+        last_count = threads.count()
+        # Nếu chưa có thread container, cố gắng scroll một ít
+        if last_count == 0:
+            page.mouse.wheel(0, 800)
+            page.wait_for_timeout(600)
+            threads = page.locator(thread_selector)
+            last_count = threads.count()
+
         while scrolls < max_scrolls:
             try:
                 if threads.count() > 0:
-                    threads.last.scroll_into_view_if_needed(timeout=2000)
+                    threads.last.scroll_into_view_if_needed(timeout=1200)
                 else:
-                    page.mouse.wheel(0, 1200)
+                    page.mouse.wheel(0, 1000)
             except Exception:
-                page.mouse.wheel(0, 1200)
-            page.wait_for_timeout(800)
+                page.mouse.wheel(0, 1000)
 
+            page.wait_for_timeout(400)
             curr_count = threads.count()
             if curr_count <= last_count:
                 scrolls += 1
@@ -141,53 +141,41 @@ def crawl_comment_threads(
                 scrolls = 0
             threads = page.locator(thread_selector)
 
-        # Helper: mở hết "Xem ... câu trả lời" trong PHẠM VI 1 thread
-        def _open_all_replies_for_thread(thread):
-            def _click_once(container) -> int:
-                clicked = 0
-                for sel in [
-                    "span:has-text('Xem')",
-                    "span:has-text('câu trả lời')",
-                    "span:has-text('View')",
-                    "span:has-text('replies')",
-                    "div[role='button']:has-text('Xem')",
-                    "div[role='button']:has-text('View')",
-                ]:
-                    loc = container.locator(sel)
-                    n = loc.count()
-                    for i in range(n):
-                        try:
-                            btn = loc.nth(i)
-                            if not btn.is_visible():
-                                continue
-                            btn.scroll_into_view_if_needed(timeout=1000)
-                            btn.click(timeout=2000)
-                            clicked += 1
-                            page.wait_for_timeout(400)
-                        except Exception:
-                            pass
-                return clicked
-
-            rounds = 0
-            while rounds < click_rounds_per_thread:
-                c = _click_once(thread)
-                if c == 0:
-                    break
-                page.wait_for_timeout(600)
-                rounds += 1
+        # Helper: trong 1 thread, click tất cả "Xem ... câu trả lời" MỖI NÚT 1 LẦN (không lặp vòng/không chờ)
+        def _click_view_replies_once(thread):
+            selectors = [
+                "span:has-text('Xem')",
+                "span:has-text('câu trả lời')",
+                "span:has-text('View')",
+                "span:has-text('replies')",
+                "div[role='button']:has-text('Xem')",
+                "div[role='button']:has-text('View')",
+            ]
+            for sel in selectors:
+                loc = thread.locator(sel)
+                n = loc.count()
+                for i in range(n):
+                    try:
+                        btn = loc.nth(i)
+                        if btn.is_visible():
+                            btn.scroll_into_view_if_needed(timeout=800)
+                            # bấm 1 lần, không wait thêm
+                            btn.click(timeout=1200)
+                    except Exception:
+                        pass
 
         results = []
         total_threads = threads.count()
         for idx in range(total_threads):
             thread = threads.nth(idx)
             try:
-                thread.scroll_into_view_if_needed(timeout=1500)
+                thread.scroll_into_view_if_needed(timeout=800)
             except Exception:
                 pass
 
-            # Mở hết replies trong thread
+            # Chỉ bấm 1 lần mọi nút "Xem ... câu trả lời" trong thread này
             try:
-                _open_all_replies_for_thread(thread)
+                _click_view_replies_once(thread)
             except Exception:
                 pass
 
@@ -207,43 +195,31 @@ def crawl_comment_threads(
             }
 
             # --- REPLIES (level-2) ---
-            # Cách ghép đơn giản: zip danh sách username-2 và comment-level-2 theo thứ tự xuất hiện.
             reply_user_boxes = thread.locator('[data-e2e="comment-username-2"]')
             reply_text_spans = thread.locator('span[data-e2e="comment-level-2"]')
 
             replies = []
-            n_users = reply_user_boxes.count()
-            n_texts = reply_text_spans.count()
-            n = min(n_users, n_texts)
-
+            n = min(reply_user_boxes.count(), reply_text_spans.count())
             for i in range(n):
-                text = ""
+                # text
                 try:
                     text = (reply_text_spans.nth(i).inner_text() or "").strip()
                 except Exception:
                     text = ""
 
-                # Bọc lại node để dùng chung extractor
-                sub_container = reply_user_boxes.nth(i)
-                h2, dn2, p2 = (None, None, None)
+                # user (ưu tiên bóc trong box của từng reply)
+                h2 = dn2 = p2 = None
                 try:
-                    # tái sử dụng hàm bằng cách truyền một "container" là node user-2
-                    h2, dn2, p2 = _extract_user_from_level(thread=thread.locator(":scope"), level=2)
-                    # Nếu extractor theo thread tổng thể không ra đúng vị trí,
-                    # fallback: bóc trực tiếp từ sub_container
-                    if not h2:
-                        try:
-                            link2 = sub_container.locator("a").first
-                            href2 = link2.get_attribute("href") or ""
-                            if "/@" in href2:
-                                h2 = href2.split("/@")[-1].split("?")[0].strip().strip("/")
-                            try:
-                                dn2 = sub_container.locator("p").first.inner_text().strip() or h2
-                            except Exception:
-                                dn2 = h2
-                            p2 = urljoin(base_url, f"/@{h2}") if h2 else None
-                        except Exception:
-                            pass
+                    sub_container = reply_user_boxes.nth(i)
+                    link2 = sub_container.locator("a").first
+                    href2 = link2.get_attribute("href") or ""
+                    if "/@" in href2:
+                        h2 = href2.split("/@")[-1].split("?")[0].strip().strip("/")
+                    try:
+                        dn2 = sub_container.locator("p").first.inner_text().strip() or h2
+                    except Exception:
+                        dn2 = h2
+                    p2 = urljoin(base_url, f"/@{h2}") if h2 else None
                 except Exception:
                     pass
 
@@ -266,15 +242,14 @@ def crawl_comment_threads(
         browser.close()
         return results
 
-import sys
-import json
+
 if __name__ == "__main__":
     url = sys.argv[1]
-    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+    # limit không dùng trong logic hiện tại, vẫn nhận để tương thích CLI
+    _ = int(sys.argv[2]) if len(sys.argv) > 2 else 100
     results = crawl_comment_threads(
-    url,
-    headless=True,
-    max_scrolls=10,
-    click_rounds_per_thread=8,
+        url,
+        headless=True,
+        max_scrolls=10,
     )
     print(json.dumps(results, ensure_ascii=False))

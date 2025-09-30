@@ -29,19 +29,25 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
     """The crawler entry point."""
 
     # Create a crawler with the necessary settings
+    concurrency_settings = ConcurrencySettings(
+        max_concurrency=5,
+        desired_concurrency=5,   # 👈 phải ≤ max_concurrency
+        # min_concurrency=1,     # (tuỳ chọn)
+    )
+
     crawler = PlaywrightCrawler(
-        concurrency_settings=ConcurrencySettings(max_concurrency=5),
+        concurrency_settings=concurrency_settings,
         request_handler=router,
         headless=True,
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=1500),
-        browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
+        browser_type=browser_type,  # 'chromium' | 'firefox' | 'webkit'
         browser_launch_options={
             "args": ["--no-sandbox"]
         },
         browser_new_context_options={
-            'permissions': [],
-            'viewport': {'width': 1280, 'height': 800},
+            "permissions": [],
+            "viewport": {"width": 1280, "height": 800},
         },
     )
     
