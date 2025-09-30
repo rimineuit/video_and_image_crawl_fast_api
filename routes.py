@@ -110,7 +110,7 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
 
         # Scroll xuống và chờ load thêm nội dung
         await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
-        await asyncio.sleep(1)  # Chờ nội dung load xong
+        await asyncio.sleep(5)  # Chờ nội dung load xong
 
         retries += 1
 
@@ -178,7 +178,7 @@ async def popular_handler(context: PlaywrightCrawlingContext) -> None:
     context.log.info(f'Queued {len(final_links)} video requests')
     # Trả về danh sách link video và lượt xem
     await context.push_data(final_links[:limit])
-    
+
 # --- Handler xử lý từng video riêng lẻ ---
 @router.handler(label='video')
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
@@ -218,28 +218,27 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'thumbnail': item_struct['video']['cover'],
         'publishedAt': convert_timestamp_to_vn_time(int(item_struct['createTime']))
     }
-
-    if get_comments == 'true':
-        # Crawl comment (tối đa MAX_COMMENTS)
-        comments = set()
-        previous = 0
-        while len(comments) < MAX_COMMENTS:
-            await context.page.wait_for_selector('span[data-e2e="comment-level-1"] p', timeout=30000)
-            await asyncio.sleep(5)
-            els = await context.page.query_selector_all('span[data-e2e="comment-level-1"] p')
-            for c in els:
-                comments.add((await c.inner_text()).strip())
-            
-            if len(comments) == previous:
-                # Không thêm được comment mới → dừng
-                break
-            previous = len(comments)
-            # Scroll để load thêm
-            await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
-            await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
+    
+    await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
+    comments = set()
+    previous = 0
+    while len(comments) < MAX_COMMENTS:
+        await context.page.wait_for_selector('span[data-e2e="comment-level-1"]', timeout=30000)
+        await context.page.wait_for_timeout(5000)
+        els = await context.page.query_selector_all('span[data-e2e="comment-level-1"]')
+        for c in els:
+            comments.add((await c.inner_text()).strip())
         
-        item['comments_content'] = list(comments)[:MAX_COMMENTS]
-        context.log.info(f'Collected {len(item["comments_content"])} comments')
+        if len(comments) == previous:
+            # Không thêm được comment mới → dừng
+            break
+        previous = len(comments)
+        # Scroll để load thêm
+        await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
+        await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
+    
+    item['comments_content'] = list(comments)[:MAX_COMMENTS]
+    context.log.info(f'Collected {len(item["comments_content"])} comments')
     
     # Lưu kết quả
     await context.push_data(item)

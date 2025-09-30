@@ -5,7 +5,7 @@ import os
 import json
 from typing import List
 # /app/
-def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
+def load_all_json_data(folder_path="./storage/datasets/default") -> list[dict]:
     data_list = []
 
     for filename in os.listdir(folder_path):
@@ -32,7 +32,7 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
     crawler = PlaywrightCrawler(
         concurrency_settings=ConcurrencySettings(max_concurrency=1),
         request_handler=router,
-        headless=True,
+        headless=False,
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=150),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     max_items = int(sys.argv[3].strip()) if len(sys.argv) > 4 else 30
     get_comments = sys.argv[4]
     asyncio.run(crawl_links_tiktok(tiktok_url, web, label, max_items))
-    
+        
     result = load_all_json_data()
     # Print the result in a pretty JSON format
     print("Result:")
