@@ -872,4 +872,38 @@ def get_batch_job_content_gemini(body: GetBatchJobContentGemini):
         }
 
     
-    
+class GetCommentTikTok(BaseModel):
+    url: str
+    limit: int = 100
+@app.post("/tiktok/get_comments_v2")
+def get_comments_v2(body: GetCommentTikTok):
+    url = body.url.strip().rstrip(';')
+    limit = body.limit
+    if not url:
+        raise HTTPException(status_code=400, detail="URL không được để trống")
+    cmd = [sys.executable, "get_comment_tiktok.py", url, str(limit)]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=env,
+            encoding='utf-8'
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="⏱️ Quá thời gian xử lý")
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi khi chạy script:\n{proc.stderr}"
+        )
+        
+    try:
+        result_json = json.loads(proc.stdout)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
+        )
+    return result_json
