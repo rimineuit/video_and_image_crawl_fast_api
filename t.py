@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-
+import time
 def crawl_comments(url: str, headless: bool = False, max_scrolls: int = 10):
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -32,8 +32,8 @@ def crawl_comments(url: str, headless: bool = False, max_scrolls: int = 10):
             comment_items.first.wait_for(timeout=15000)
         except PlaywrightTimeoutError:
             # Thử cuộn nhẹ để kích hoạt lazy load
-            page.mouse.wheel(0, 800)
-            page.wait_for_timeout(1000)
+            page.mouse.wheel(0, 20)
+            page.wait_for_timeout(10000)
             comment_items.first.wait_for(timeout=10000)
 
         # Cuộn để tải thêm bình luận (nếu cần)
@@ -43,9 +43,10 @@ def crawl_comments(url: str, headless: bool = False, max_scrolls: int = 10):
             try:
                 # cuộn vào vùng comment và lăn bánh xe để load thêm
                 comment_items.last.scroll_into_view_if_needed(timeout=3000)
+                time.sleep(10)
             except:
                 # fallback: cuộn trang
-                page.mouse.wheel(0, 1200)
+                page.mouse.wheel(0, 120)
 
             page.wait_for_timeout(1200)
             curr_count = comment_items.count()

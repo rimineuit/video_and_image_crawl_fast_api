@@ -30,11 +30,11 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
 
     # Create a crawler with the necessary settings
     crawler = PlaywrightCrawler(
-        concurrency_settings=ConcurrencySettings(max_concurrency=1),
+        concurrency_settings=ConcurrencySettings(max_concurrency=5),
         request_handler=router,
         headless=True,
         max_requests_per_crawl=50,
-        request_handler_timeout=timedelta(seconds=150),
+        request_handler_timeout=timedelta(seconds=1500),
         browser_type=browser_type,  # 'chromium' hoặc 'firefox' hoặc 'webkit'
         browser_launch_options={
             "args": ["--no-sandbox"]

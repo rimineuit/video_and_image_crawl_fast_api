@@ -85,24 +85,19 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
         raise ValueError('`limit` must be a positive integer')
 
     # Đợi user-post hoặc nút load-more hiển thị
-    await context.page.locator('[data-e2e="user-post-item"], main button').first.wait_for(timeout=30000)
+    await context.page.locator('[data-e2e="user-post-item"]').first.wait_for(timeout=30000)
 
-    # Click vào nút load-more nếu có
-    btn = await context.page.query_selector('main button')
-    if btn:
-        await btn.click()
-        
     collected = {}
     retries = 0
     MAX_RETRIES = 3
-
+    length_collected = 0
     while len(collected) < limit and retries < MAX_RETRIES:
         links = await extract_video_metadata(context.page)
         for item in links:
             url = item['url']
             if url not in collected:
                 collected[url] = item['views']
-
+        
         context.log.info(f'Found {len(collected)} video links so far...')
 
         if len(collected) >= limit:
@@ -111,8 +106,11 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
         # Scroll xuống và chờ load thêm nội dung
         await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
         await asyncio.sleep(5)  # Chờ nội dung load xong
-
-        retries += 1
+        if len(collected) > length_collected:
+            length_collected = len(collected)
+            retries = 0  # reset retries if new items found
+        else: 
+            retries += 1
 
     # Tạo danh sách link video và lượt xem từ collected
     final_links = [{'url': url, 'views': views} for url, views in collected.items()]
@@ -150,7 +148,7 @@ async def popular_handler(context: PlaywrightCrawlingContext) -> None:
         
     collected = {}
     retries = 0
-    MAX_RETRIES = 10
+    MAX_RETRIES = 50
 
     while len(collected) < limit and retries < MAX_RETRIES:
         links = await extract_video_metadata(context.page)
