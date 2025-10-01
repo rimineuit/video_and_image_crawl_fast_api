@@ -141,18 +141,19 @@ class TikTokBody(BaseModel):
     label: str = "newest"  # Nhãn mặc định
     max_items: int = 30  # Số lượng video tối đa mỗi trang
     get_comments: str = "False"  # Mặc định không lấy bình luận
+    max_comments: int = 100  # Số lượng bình luận tối đa mỗi video
 
 @app.post("/tiktok/get_video_links_and_metadata")
 async def tiktok_get_video_links_and_metadata(body: TikTokBody):
     label = body.label.strip().lower()
     browser_type = body.browser_type.strip().lower()
-
+    max_comments = str(body.max_comments)
     # Nối các URL thành một chuỗi cách nhau bởi dấu cách
     clean_url = body.url.strip()
     max_items = str(body.max_items).strip()
     script_path = "get_tiktok_video_links_and_metadata.py"
     get_comments = body.get_comments
-    cmd = [sys.executable, script_path, browser_type, label, max_items, get_comments, clean_url]
+    cmd = [sys.executable, script_path, browser_type, label, max_items, get_comments, clean_url, max_comments]
     print(cmd)
     try:
         proc = subprocess.run(

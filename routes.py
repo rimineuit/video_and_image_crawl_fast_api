@@ -172,241 +172,7 @@ async def popular_handler(context: PlaywrightCrawlingContext) -> None:
     context.log.info(f'Queued {len(final_links)} video requests')
     # Trả về danh sách link video và lượt xem
     await context.push_data(final_links[:limit])
-from urllib.parse import urljoin
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
-
-async def extract_comment_threads_from_page(
-    page,
-    *,
-    base_url: str = "https://www.tiktok.com",
-    max_scrolls: int = 10,
-    click_rounds_per_thread: int = 8,
-) -> list[dict]:
-    """
-    Trả về list[dict] dạng:
-    [
-      {
-        "text": "<comment-level-1 text>",
-        "user": {
-            "user_handle": "ha.",
-            "display_name": "ha.",
-            "profile_url": "https://www.tiktok.com/@ha."
-        },
-        "replies": [
-          {
-            "text": "<comment-level-2 text>",
-            "user": {
-                "user_handle": "...",
-                "display_name": "...",
-                "profile_url": "https://www.tiktok.com/@..."
-            }
-          },
-          ...
-        ]
-      },
-      ...
-    ]
-    """
-
-    def _dedupe_preserve_order(items):
-        seen = set()
-        out = []
-        for x in items:
-            key = repr(x)  # dict/list unhashable -> dùng repr để khử trùng lặp sơ bộ
-            if key not in seen:
-                seen.add(key)
-                out.append(x)
-        return out
-
-    async def _extract_user_from_level(thread, level: int):
-        """
-        Tìm user ở mức level (1 cho cmt gốc, 2 cho reply) trong phạm vi thread/container.
-        Trả về (handle, display_name, profile_url) hoặc (None, None, None).
-        """
-        try:
-            user_box = thread.locator(f'[data-e2e="comment-username-{level}"]').first
-            # a[href="/@handle"]
-            link = user_box.locator("a").first
-            href = await link.get_attribute("href") or ""
-            handle = None
-            if "/@" in href:
-                handle = href.split("/@")[-1].split("?")[0].strip().strip("/")
-            # display name nằm trong <p> (nếu có)
-            display_name = None
-            try:
-                dn = (await user_box.locator("p").first.inner_text()).strip()
-                display_name = dn or handle
-            except Exception:
-                display_name = handle
-            profile_url = urljoin(base_url, f"/@{handle}") if handle else None
-            if handle:
-                return handle, display_name, profile_url
-        except Exception:
-            pass
-        return None, None, None
-
-    # --- đảm bảo trang đã load phần comment ---
-    try:
-        await page.wait_for_timeout(5000)
-        # bấm "Skip" nếu có
-        try:
-            skip_btn = page.locator("div.TUXButton-label:has-text('Skip')").first
-            if await skip_btn.is_visible():
-                await skip_btn.click(timeout=2000)
-                await page.wait_for_timeout(800)
-        except Exception:
-            pass
-
-        await page.mouse.wheel(0, 300)
-        await page.wait_for_timeout(1500)
-
-        top_level_any = page.locator('span[data-e2e="comment-level-1"]')
-        try:
-            await top_level_any.first.wait_for(timeout=15000)
-        except PlaywrightTimeoutError:
-            await page.mouse.wheel(0, 800)
-            await page.wait_for_timeout(3000)
-            await top_level_any.first.wait_for(timeout=10000)
-    except Exception:
-        # Không có comment
-        return []
-
-    # selector wrapper từng thread (comment gốc)
-    thread_selector = "div.e16z10169"  # lớp hash có thể thay đổi theo phiên bản
-    threads = page.locator(thread_selector)
-
-    # --- cuộn để load đủ threads ---
-    scrolls = 0
-    last_count = 0
-    while scrolls < max_scrolls:
-        try:
-            if await threads.count() > 0:
-                await threads.last.scroll_into_view_if_needed(timeout=1500)
-            else:
-                await page.mouse.wheel(0, 1200)
-        except Exception:
-            await page.mouse.wheel(0, 1200)
-        await page.wait_for_timeout(600)
-
-        curr_count = await threads.count()
-        if curr_count <= last_count:
-            scrolls += 1
-        else:
-            last_count = curr_count
-            scrolls = 0
-        threads = page.locator(thread_selector)
-
-    # --- helper: mở tất cả "Xem ... câu trả lời" trong phạm vi 1 thread ---
-    async def _open_all_replies_for_thread(thread):
-        async def _click_once(container) -> int:
-            clicked = 0
-            for sel in [
-                "span:has-text('Xem')",
-                "span:has-text('câu trả lời')",
-                "span:has-text('View')",
-                "span:has-text('replies')",
-                "div[role='button']:has-text('Xem')",
-                "div[role='button']:has-text('View')",
-            ]:
-                loc = container.locator(sel)
-                n = await loc.count()
-                for i in range(n):
-                    try:
-                        btn = loc.nth(i)
-                        if not await btn.is_visible():
-                            continue
-                        await btn.scroll_into_view_if_needed(timeout=800)
-                        await btn.click(timeout=1500)
-                        clicked += 1
-                        await page.wait_for_timeout(300)
-                    except Exception:
-                        pass
-            return clicked
-
-        rounds = 0
-        while rounds < click_rounds_per_thread:
-            c = await _click_once(thread)
-            if c == 0:
-                break
-            await page.wait_for_timeout(500)
-            rounds += 1
-
-    # --- duyệt và gom kết quả ---
-    results = []
-    total_threads = await threads.count()
-    for idx in range(total_threads):
-        thread = threads.nth(idx)
-        try:
-            await thread.scroll_into_view_if_needed(timeout=1000)
-        except Exception:
-            pass
-
-        try:
-            await _open_all_replies_for_thread(thread)
-        except Exception:
-            pass
-
-        # cmt gốc
-        root_text = ""
-        try:
-            root_span = thread.locator('span[data-e2e="comment-level-1"]').first
-            root_text = ((await root_span.inner_text()) or "").strip()
-        except Exception:
-            pass
-
-        h1, dn1, p1 = await _extract_user_from_level(thread, level=1)
-        root_user = {"user_handle": h1, "display_name": dn1, "profile_url": p1}
-
-        # replies
-        reply_user_boxes = thread.locator('[data-e2e="comment-username-2"]')
-        reply_text_spans = thread.locator('span[data-e2e="comment-level-2"]')
-
-        replies = []
-        n_users = await reply_user_boxes.count()
-        n_texts = await reply_text_spans.count()
-        n = min(n_users, n_texts)
-
-        for i in range(n):
-            text = ""
-            try:
-                text = ((await reply_text_spans.nth(i).inner_text()) or "").strip()
-            except Exception:
-                text = ""
-
-            sub_container = reply_user_boxes.nth(i)
-            h2, dn2, p2 = (None, None, None)
-            try:
-                # thử extractor theo level 2 trong thread
-                h2, dn2, p2 = await _extract_user_from_level(thread, level=2)
-                if not h2:
-                    # fallback: lấy trực tiếp từ sub_container
-                    try:
-                        link2 = sub_container.locator("a").first
-                        href2 = await link2.get_attribute("href") or ""
-                        if "/@" in href2:
-                            h2 = href2.split("/@")[-1].split("?")[0].strip().strip("/")
-                        try:
-                            dn2 = (await sub_container.locator("p").first.inner_text()).strip() or h2
-                        except Exception:
-                            dn2 = h2
-                        p2 = urljoin(base_url, f"/@{h2}") if h2 else None
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            replies.append({
-                "text": text,
-                "user": {"user_handle": h2, "display_name": dn2, "profile_url": p2}
-            })
-
-        results.append({
-            "text": root_text,
-            "user": root_user,
-            "replies": _dedupe_preserve_order(replies),
-        })
-
-    return results
+    
 # --- Cấu hình chung ---
 MAX_COMMENTS = 30
 SCROLL_PAUSE_MS = 1000
@@ -416,6 +182,7 @@ SCROLL_PAUSE_MS = 1000
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.user_data.get('url') or context.request.url
     get_comments = context.request.user_data.get('get_comments')
+    
     context.log.info(f'Start video crawl: {url}')
     await context.page.wait_for_load_state("networkidle", timeout=30000)
     # Lấy dữ liệu JSON từ trang
@@ -566,7 +333,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                 try:
                     last = comments_loc.nth(boundary_index)
                     if await last.is_visible():
-                        await last.scroll_into_view_if_needed(timeout=1500)
+                        await last.scroll_into_view_if_needed(timeout=500)
                     else:
                         await context.page.mouse.wheel(0, half_screen)
                 except Exception:
@@ -579,31 +346,26 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         import re
 
         COMMENT_WRAPPER_SEL = 'div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169'
-        LV1_USER_SEL = 'div[data-e2e="comment-username-1"] a.link-a11y-focus'
-        LV2_USER_SEL = 'div[data-e2e="comment-username-2"] a.link-a11y-focus'
-        LV1_TEXT_SEL = 'span[data-e2e="comment-level-1"]'
-        LV2_TEXT_SEL = 'span[data-e2e="comment-level-2"]'
-        LIKE_CONTAINER_SEL = 'div[role="button"][aria-pressed]'  # ô like
-        LIKE_COUNT_INNER = 'span.TUXText'  # con số nằm trong span chữ
+        LV1_USER_SEL       = 'div[data-e2e="comment-username-1"] a.link-a11y-focus'
+        LV2_USER_SEL       = 'div[data-e2e="comment-username-2"] a.link-a11y-focus'
+        LV1_TEXT_SEL       = 'span[data-e2e="comment-level-1"]'
+        LV2_TEXT_SEL       = 'span[data-e2e="comment-level-2"]'
+        LIKE_CONTAINER_SEL = 'div[role="button"][aria-pressed]'
+        LIKE_COUNT_INNER   = 'span.TUXText'
 
         def _parse_int(text: str) -> int:
-            # lọc số, hỗ trợ "5", "5 lượt thích", "1,2K", "1.2K" => chuyển về int
             t = (text or "").strip()
-            # chuẩn hóa K/M
             m = re.search(r'([\d\.,]+)\s*([kKmM]?)', t)
             if not m:
                 return 0
             num, unit = m.group(1), m.group(2).lower()
             num = num.replace('.', '').replace(',', '')
             if not num.isdigit():
-                # fallback: lấy tất cả chữ số liền nhau
                 d = re.findall(r'\d+', t)
                 return int(d[0]) if d else 0
             val = int(num)
-            if unit == 'k':
-                val *= 1000
-            elif unit == 'm':
-                val *= 1_000_000
+            if unit == 'k': val *= 1000
+            elif unit == 'm': val *= 1_000_000
             return val
 
         async def _get_like_count(scope_el):
@@ -621,91 +383,95 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         # Thu thập threads (cmt lvl-1 + replies) + user href + likes
         comment_divs = await context.page.query_selector_all(COMMENT_WRAPPER_SEL)
 
-        comments = []
+        threads = []
         seen = set()
 
         for node in comment_divs:
-            tmp = {}
-
-            # ===== Level-1 =====
+            # ===== Level-1 (parent) =====
             lv1_text_el = await node.query_selector(LV1_TEXT_SEL)
-            if lv1_text_el:
-                lv1_text = (await lv1_text_el.inner_text()).strip()
-            else:
-                lv1_text = ""
+            if not lv1_text_el:
+                continue  # không có comment cha thì bỏ qua
 
-            lv1_user_el = await node.query_selector(LV1_USER_SEL)
+            lv1_text = (await lv1_text_el.inner_text() or "").strip()
+            if not lv1_text:
+                continue
+
+            # Ancestor item wrapper của chính cmt_1 (để scope user/likes đúng)
+            try:
+                lv1_item = await lv1_text_el.query_selector(
+                    'xpath=ancestor::div[contains(@class,"DivCommentItemWrapper")]'
+                )
+            except Exception:
+                lv1_item = None
+
+            # User + href cho cmt_1
             lv1_user = {"name": "", "href": ""}
-            if lv1_user_el:
-                try:
-                    lv1_user["href"] = await lv1_user_el.get_attribute("href") or ""
-                    # tên nằm trong <p> con, nhưng inner_text của <a> cũng thường ra đúng
-                    lv1_user["name"] = (await lv1_user_el.inner_text() or "").strip()
-                except Exception:
-                    pass
+            if lv1_item:
+                u1 = await lv1_item.query_selector(LV1_USER_SEL)
+                if u1:
+                    try:
+                        lv1_user["href"] = await u1.get_attribute("href") or ""
+                        lv1_user["name"] = (await u1.inner_text() or "").strip()
+                    except Exception:
+                        pass
 
-            lv1_likes = await _get_like_count(node)  # scope toàn node level-1 wrapper
+            # Likes cho cmt_1 (scope theo lv1_item để không lẫn với like của reply)
+            lv1_likes = await _get_like_count(lv1_item or node)
 
-            if lv1_text or (lv1_user["name"] or lv1_user["href"]):
-                tmp["cmt_1"] = {
-                    "user": lv1_user,              # {"name": "...", "href": "/@handle"}
-                    "text": lv1_text,              # nội dung comment level-1
-                    "likes": lv1_likes,            # số lượt thích (int)
+            thread = {
+                "cmt_1": {
+                    "user": lv1_user,     # {"name": "...", "href": "/@handle"}
+                    "text": lv1_text,     # nội dung comment level-1
+                    "likes": lv1_likes,   # số lượt thích (int)
+                    "replies": []         # danh sách cmt_2
                 }
+            }
 
-            # ===== Level-2 replies =====
+            # ===== Level-2 (replies) =====
             reply_spans = await node.query_selector_all(LV2_TEXT_SEL)
-            c2_list = []
             for rs in reply_spans:
-                # Tìm ancestor là comment item của reply (ổn định hơn bằng XPath)
-                # ancestor::div[contains(@class, 'DivCommentItemWrapper')]
+                t = (await rs.inner_text() or "").strip()
+                if not t:
+                    continue
+
+                # Ancestor item wrapper của chính reply
                 try:
                     anc = await rs.query_selector('xpath=ancestor::div[contains(@class,"DivCommentItemWrapper")]')
                 except Exception:
                     anc = None
 
-                # text
-                t = (await rs.inner_text()).strip() if rs else ""
-                if not t:
-                    continue
-
-                # user trong scope anc
                 user = {"name": "", "href": ""}
                 if anc:
-                    uel = await anc.query_selector(LV2_USER_SEL)
-                    if uel:
+                    u2 = await anc.query_selector(LV2_USER_SEL)
+                    if u2:
                         try:
-                            user["href"] = await uel.get_attribute("href") or ""
-                            user["name"] = (await uel.inner_text() or "").strip()
+                            user["href"] = await u2.get_attribute("href") or ""
+                            user["name"] = (await u2.inner_text() or "").strip()
                         except Exception:
                             pass
                     likes = await _get_like_count(anc)
                 else:
                     likes = 0
 
-                c2_list.append({
-                    "user": user,     # {"name": "...", "href": "/@handle"}
-                    "text": t,        # nội dung reply
-                    "likes": likes,   # số lượt thích (int)
+                thread["cmt_1"]["replies"].append({
+                    "user":  user,   # {"name": "...", "href": "/@handle"}
+                    "text":  t,
+                    "likes": likes
                 })
 
-            if c2_list:
-                tmp["cmt_2"] = c2_list
+            # ===== Dedupe theo (lv1_href, lv1_text, reply tuples) =====
+            key = (
+                thread["cmt_1"]["user"].get("href", ""),
+                thread["cmt_1"]["text"],
+                tuple((r["user"].get("href",""), r["text"]) for r in thread["cmt_1"]["replies"])
+            )
+            if key not in seen:
+                seen.add(key)
+                threads.append(thread)
 
-            # ===== Dedupe theo (lv1_text, tuple(reply_texts)) + user handle nếu có =====
-            if tmp:
-                key = (
-                    tmp.get("cmt_1", {}).get("user", {}).get("href", ""),
-                    tmp.get("cmt_1", {}).get("text", ""),
-                    tuple((r.get("user", {}).get("href", ""), r.get("text", "")) for r in tmp.get("cmt_2", [])),
-                )
-                if key not in seen:
-                    seen.add(key)
-                    comments.append(tmp)
+        item['comments_content'] = threads[:MAX_COMMENTS]
+        context.log.info(f'Collected {len(item["comments_content"])} threads')
 
-
-        item['comments_content'] = comments[:MAX_COMMENTS]   # <-- gán trước khi log
-        context.log.info(f'Collected {len(item["comments_content"])} comments')
 
     # Lưu kết quả
     await context.push_data(item)
