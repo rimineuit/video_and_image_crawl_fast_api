@@ -228,7 +228,6 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
 
     num_comments = item_struct['stats']['commentCount']
     if num_comments > 0:
-        comments = []
         seen = set()
         # await context.page.wait_for_timeout(20000)
         previous = 0
@@ -246,7 +245,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         )
 
         # Yêu cầu: MAX_COMMENTS, SCROLL_PAUSE_MS đã khai báo
-        await context.page.wait_for_selector(COMMENT_SEL, timeout=30000)
+        await context.page.wait_for_selector(COMMENT_SEL, timeout=3000)
         comments_loc = context.page.locator(COMMENT_SEL)
 
         vp = context.page.viewport_size or {"height": 800}
