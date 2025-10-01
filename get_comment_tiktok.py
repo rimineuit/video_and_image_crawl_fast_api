@@ -242,7 +242,6 @@ def crawl_comment_threads(
         browser.close()
         return results
 
-
 if __name__ == "__main__":
     url = sys.argv[1]
     # limit không dùng trong logic hiện tại, vẫn nhận để tương thích CLI

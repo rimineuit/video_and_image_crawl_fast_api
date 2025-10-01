@@ -24,10 +24,6 @@ def convert_timestamp_to_vn_time(timestamp: int) -> str:
 
 router = Router[PlaywrightCrawlingContext]()
 
-# --- Cấu hình chung ---
-MAX_COMMENTS = 50
-SCROLL_PAUSE_MS = 1000
-
 import re
 
 def normalize_views(view_str: str) -> int:
@@ -411,6 +407,9 @@ async def extract_comment_threads_from_page(
         })
 
     return results
+# --- Cấu hình chung ---
+MAX_COMMENTS = 30
+SCROLL_PAUSE_MS = 1000
 
 # --- Handler xử lý từng video riêng lẻ ---
 @router.handler(label='video')
@@ -418,7 +417,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.user_data.get('url') or context.request.url
     get_comments = context.request.user_data.get('get_comments')
     context.log.info(f'Start video crawl: {url}')
-    
+    await context.page.wait_for_load_state("networkidle", timeout=30000)
     # Lấy dữ liệu JSON từ trang
     elem = await context.page.query_selector('#__UNIVERSAL_DATA_FOR_REHYDRATION__')
     if not elem:
@@ -452,27 +451,262 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         'publishedAt': convert_timestamp_to_vn_time(int(item_struct['createTime']))
     }
     
-    await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
-    comments = set()
-    previous = 0
-    while len(comments) < MAX_COMMENTS:
-        await context.page.wait_for_selector('span[data-e2e="comment-level-1"]', timeout=30000)
-        await context.page.wait_for_timeout(5000)
-        els = await context.page.query_selector_all('span[data-e2e="comment-level-1"]')
-        for c in els:
-            comments.add((await c.inner_text()).strip())
-        
-        if len(comments) == previous:
-            # Không thêm được comment mới → dừng
-            break
-        previous = len(comments)
-        # Scroll để load thêm
-        await context.page.evaluate('window.scrollBy(0, window.innerHeight);')
-        await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
-    
-    item['comments_content'] = list(comments)[:MAX_COMMENTS]
-    context.log.info(f'Collected {len(item["comments_content"])} comments')
-    
+    try:
+        skip_btn = context.page.locator("div.TUXButton-label:has-text('Skip')").first
+        # Đợi tối đa 5s cho đến khi nút hiển thị
+        await skip_btn.wait_for(timeout=5000)
+        await skip_btn.click(timeout=1500)
+    except Exception:
+        pass
+
+    num_comments = item_struct['stats']['commentCount']
+    if num_comments > 0:
+        comments = []
+        seen = set()
+        # await context.page.wait_for_timeout(20000)
+        previous = 0
+        retries = 0
+        count_all = await context.page.locator("div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169").count()
+        locator = context.page.locator("div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169").first  # <-- bỏ await
+        await locator.scroll_into_view_if_needed(timeout=3000)
+
+        COMMENT_SEL = "div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169"
+        VIEW_MORE_INNER_SEL = (
+            "div.css-1ey35vz-5e6d46e3--DivViewRepliesContainer.e1cx7wx92 "
+            "span:has-text('Xem'), "
+            "div.css-1ey35vz-5e6d46e3--DivViewRepliesContainer.e1cx7wx92 "
+            "span:has-text('View')"
+        )
+
+        # Yêu cầu: MAX_COMMENTS, SCROLL_PAUSE_MS đã khai báo
+        await context.page.wait_for_selector(COMMENT_SEL, timeout=30000)
+        comments_loc = context.page.locator(COMMENT_SEL)
+
+        vp = context.page.viewport_size or {"height": 800}
+        half_screen = max(200, int(vp["height"] * 0.5))
+
+        previous = 0
+        retries = 0
+
+        async def expand_view_more_in_top_n(page, wrappers_loc, top_n, per_wrapper_click_limit=10) -> tuple[bool, bool]:
+            """
+            Trả về (changed, any_left):
+            - changed: có mở thêm ít nhất 1 reply không
+            - any_left: sau khi click, còn nút Xem nào trong top_n không
+            """
+            changed = False
+            total_left = 0
+
+            n_wrappers = await wrappers_loc.count()
+            limit = min(top_n, n_wrappers)
+
+            for i in range(limit):
+                wrap = wrappers_loc.nth(i)
+                # click tối đa per_wrapper_click_limit lần / wrapper để tránh kẹt
+                clicks = 0
+                while clicks < per_wrapper_click_limit:
+                    btns = wrap.locator(VIEW_MORE_INNER_SEL)
+                    n_btn = await btns.count()
+                    if n_btn == 0:
+                        break
+                    # luôn lấy cái đầu vì sau click DOM thay đổi
+                    btn = btns.first
+                    if await btn.is_visible():
+                        try:
+                            await btn.scroll_into_view_if_needed(timeout=1500)
+                        except Exception:
+                            pass
+                        try:
+                            await btn.click(timeout=2000)
+                            changed = True
+                            clicks += 1
+                            # cho UI cập nhật
+                            await page.wait_for_timeout(2000)
+                        except Exception:
+                            # nếu click fail, thoát vòng while để tránh kẹt
+                            break
+                    else:
+                        break
+
+                # đếm còn lại ở wrapper này sau khi đã click
+                total_left += await wrap.locator(VIEW_MORE_INNER_SEL).count()
+
+            any_left = total_left > 0
+            return changed, any_left
+
+        while True:
+            count_all = await comments_loc.count()
+            if count_all >= MAX_COMMENTS:
+                break
+
+            # Mở các nút "Xem..." CHỈ trong top N = MAX_COMMENTS
+            changed, any_left_in_top_n = await expand_view_more_in_top_n(
+                context.page, comments_loc, MAX_COMMENTS, per_wrapper_click_limit=3
+            )
+
+            # Đợi lazy-load
+            await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
+
+            new_count = await comments_loc.count()
+            if new_count == previous and not changed:
+                retries += 1
+            else:
+                retries = 0
+                previous = new_count
+
+            # Điều kiện dừng theo đúng yêu cầu:
+            # - đủ MAX_COMMENTS, hoặc
+            # - retries > 2 và KHÔNG còn nút Xem trong top N wrappers
+            if new_count >= MAX_COMMENTS or (retries > 2 and not any_left_in_top_n):
+                break
+
+            # Kéo tới comment cuối trong top N để kích load thêm
+            boundary_index = min(MAX_COMMENTS, new_count) - 1
+            if boundary_index >= 0:
+                try:
+                    last = comments_loc.nth(boundary_index)
+                    if await last.is_visible():
+                        await last.scroll_into_view_if_needed(timeout=1500)
+                    else:
+                        await context.page.mouse.wheel(0, half_screen)
+                except Exception:
+                    await context.page.mouse.wheel(0, half_screen)
+            else:
+                await context.page.mouse.wheel(0, half_screen)
+
+            await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
+
+        import re
+
+        COMMENT_WRAPPER_SEL = 'div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169'
+        LV1_USER_SEL = 'div[data-e2e="comment-username-1"] a.link-a11y-focus'
+        LV2_USER_SEL = 'div[data-e2e="comment-username-2"] a.link-a11y-focus'
+        LV1_TEXT_SEL = 'span[data-e2e="comment-level-1"]'
+        LV2_TEXT_SEL = 'span[data-e2e="comment-level-2"]'
+        LIKE_CONTAINER_SEL = 'div[role="button"][aria-pressed]'  # ô like
+        LIKE_COUNT_INNER = 'span.TUXText'  # con số nằm trong span chữ
+
+        def _parse_int(text: str) -> int:
+            # lọc số, hỗ trợ "5", "5 lượt thích", "1,2K", "1.2K" => chuyển về int
+            t = (text or "").strip()
+            # chuẩn hóa K/M
+            m = re.search(r'([\d\.,]+)\s*([kKmM]?)', t)
+            if not m:
+                return 0
+            num, unit = m.group(1), m.group(2).lower()
+            num = num.replace('.', '').replace(',', '')
+            if not num.isdigit():
+                # fallback: lấy tất cả chữ số liền nhau
+                d = re.findall(r'\d+', t)
+                return int(d[0]) if d else 0
+            val = int(num)
+            if unit == 'k':
+                val *= 1000
+            elif unit == 'm':
+                val *= 1_000_000
+            return val
+
+        async def _get_like_count(scope_el):
+            try:
+                like_box = await scope_el.query_selector(LIKE_CONTAINER_SEL)
+                if like_box:
+                    span_num = await like_box.query_selector(LIKE_COUNT_INNER)
+                    if span_num:
+                        txt = (await span_num.inner_text()).strip()
+                        return _parse_int(txt)
+            except Exception:
+                pass
+            return 0
+
+        # Thu thập threads (cmt lvl-1 + replies) + user href + likes
+        comment_divs = await context.page.query_selector_all(COMMENT_WRAPPER_SEL)
+
+        comments = []
+        seen = set()
+
+        for node in comment_divs:
+            tmp = {}
+
+            # ===== Level-1 =====
+            lv1_text_el = await node.query_selector(LV1_TEXT_SEL)
+            if lv1_text_el:
+                lv1_text = (await lv1_text_el.inner_text()).strip()
+            else:
+                lv1_text = ""
+
+            lv1_user_el = await node.query_selector(LV1_USER_SEL)
+            lv1_user = {"name": "", "href": ""}
+            if lv1_user_el:
+                try:
+                    lv1_user["href"] = await lv1_user_el.get_attribute("href") or ""
+                    # tên nằm trong <p> con, nhưng inner_text của <a> cũng thường ra đúng
+                    lv1_user["name"] = (await lv1_user_el.inner_text() or "").strip()
+                except Exception:
+                    pass
+
+            lv1_likes = await _get_like_count(node)  # scope toàn node level-1 wrapper
+
+            if lv1_text or (lv1_user["name"] or lv1_user["href"]):
+                tmp["cmt_1"] = {
+                    "user": lv1_user,              # {"name": "...", "href": "/@handle"}
+                    "text": lv1_text,              # nội dung comment level-1
+                    "likes": lv1_likes,            # số lượt thích (int)
+                }
+
+            # ===== Level-2 replies =====
+            reply_spans = await node.query_selector_all(LV2_TEXT_SEL)
+            c2_list = []
+            for rs in reply_spans:
+                # Tìm ancestor là comment item của reply (ổn định hơn bằng XPath)
+                # ancestor::div[contains(@class, 'DivCommentItemWrapper')]
+                try:
+                    anc = await rs.query_selector('xpath=ancestor::div[contains(@class,"DivCommentItemWrapper")]')
+                except Exception:
+                    anc = None
+
+                # text
+                t = (await rs.inner_text()).strip() if rs else ""
+                if not t:
+                    continue
+
+                # user trong scope anc
+                user = {"name": "", "href": ""}
+                if anc:
+                    uel = await anc.query_selector(LV2_USER_SEL)
+                    if uel:
+                        try:
+                            user["href"] = await uel.get_attribute("href") or ""
+                            user["name"] = (await uel.inner_text() or "").strip()
+                        except Exception:
+                            pass
+                    likes = await _get_like_count(anc)
+                else:
+                    likes = 0
+
+                c2_list.append({
+                    "user": user,     # {"name": "...", "href": "/@handle"}
+                    "text": t,        # nội dung reply
+                    "likes": likes,   # số lượt thích (int)
+                })
+
+            if c2_list:
+                tmp["cmt_2"] = c2_list
+
+            # ===== Dedupe theo (lv1_text, tuple(reply_texts)) + user handle nếu có =====
+            if tmp:
+                key = (
+                    tmp.get("cmt_1", {}).get("user", {}).get("href", ""),
+                    tmp.get("cmt_1", {}).get("text", ""),
+                    tuple((r.get("user", {}).get("href", ""), r.get("text", "")) for r in tmp.get("cmt_2", [])),
+                )
+                if key not in seen:
+                    seen.add(key)
+                    comments.append(tmp)
+
+
+        item['comments_content'] = comments[:MAX_COMMENTS]   # <-- gán trước khi log
+        context.log.info(f'Collected {len(item["comments_content"])} comments')
+
     # Lưu kết quả
     await context.push_data(item)
 

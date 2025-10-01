@@ -118,6 +118,23 @@ async def image_upload(body: ImageBody):
 
 from typing import List
 
+
+def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
+    data_list = []
+
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".json") and filename != "__metadata__.json":
+            file_path = os.path.join(folder_path, filename)
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    data_list.append(data)
+            except Exception as e:
+                print(f"Lỗi khi đọc file {filename}: {e}")
+
+    return data_list
+
+
 class TikTokBody(BaseModel):
     url: str  # Danh sách các URL TikTok
     browser_type: str = "chromium"  # Mặc định là Firefox
@@ -154,30 +171,16 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
             status_code=500,
             detail=f"Lỗi khi chạy script:\n{proc.stderr}"
         )
-        
+    
     try:
-        # Lấy phần output sau chữ "Result"
-        result_start = proc.stdout.find("Result:\n")
-        if result_start == -1:
-            raise ValueError("Không tìm thấy đoạn 'Result' trong stdout")
-
-        json_part = proc.stdout[result_start:]  # phần sau "Result"
-        # Tìm JSON mảng đầu tiên bắt đầu bằng [ và kết thúc bằng ]
-        json_match = re.search(r"\[\s*{[\s\S]*?}\s*\]", json_part)
-        
-        if not json_match:
-            raise ValueError("Không tìm thấy JSON hợp lệ trong stdout")
-
-        json_text = json_match.group(0).replace("\n", "")
-        result_json = json.loads(json_text)
-
+        result = load_all_json_data()
 
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Lỗi parse JSON từ output: {e}\n\n--- STDOUT ---\n{proc.stdout}"
         )
-    return result_json
+    return result
 
 class TikTokCrawlAdsRequest(BaseModel):
     limit: str = '10'

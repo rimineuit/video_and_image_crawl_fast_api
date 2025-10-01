@@ -5,20 +5,7 @@ import os
 import json
 from typing import List
 # /app/
-def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
-    data_list = []
 
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".json") and filename != "__metadata__.json":
-            file_path = os.path.join(folder_path, filename)
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    data_list.append(data)
-            except Exception as e:
-                print(f"Lỗi khi đọc file {filename}: {e}")
-
-    return data_list
 
 from crawlee import ConcurrencySettings, Request
 from crawlee.crawlers import PlaywrightCrawler
@@ -47,8 +34,8 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
         },
         browser_new_context_options={
             "permissions": [],
-            "viewport": {"width": 1280, "height": 800},
-        },
+            "viewport": {"width": 1080, "height": 720},
+        }
     )
     
     # Run the crawler to collect data from several user pages
@@ -70,9 +57,6 @@ if __name__ == '__main__':
     get_comments = sys.argv[4]
     asyncio.run(crawl_links_tiktok(tiktok_url, web, label, max_items))
         
-    result = load_all_json_data()
-    # Print the result in a pretty JSON format
-    print("Result:")
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    
     
         
