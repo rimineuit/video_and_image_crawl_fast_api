@@ -326,21 +326,76 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             if new_count >= MAX_COMMENTS or (retries > 2 and not any_left_in_top_n):
                 break
 
-            # Kéo tới comment cuối trong top N để kích load thêm
+            # --- helper: kéo VƯỢT QUA target ---
+            async def _scroll_past(page, target_locator, overshoot_px: int) -> None:
+                # 1) thử tìm container cuộn gần nhất rồi kéo quá target
+                try:
+                    await target_locator.scroll_into_view_if_needed(timeout=300)
+                    await page.wait_for_timeout(50)
+                    await target_locator.evaluate("""
+                    (el, extra) => {
+                        const isScrollable = (n) => {
+                            if (!n || !n.ownerDocument) return false;
+                            const cs = n.ownerDocument.defaultView.getComputedStyle(n);
+                            return ['auto','scroll'].includes(cs.overflowY) && n.scrollHeight > n.clientHeight;
+                        };
+                        // tìm ancestor có overflow-y cuộn
+                        let node = el.parentElement;
+                        while (node) {
+                            if (isScrollable(node)) {
+                                // cuộn sao cho điểm bottom của el VƯỢT quá viewport của container
+                                const elBottom = el.offsetTop + el.offsetHeight;
+                                const targetTop = elBottom - node.clientHeight + extra; // vượt quá một đoạn
+                                node.scrollTop = Math.max(0, targetTop);
+                                return true;
+                            }
+                            node = node.parentElement;
+                        }
+                        // fallback: cuộn window vượt quá
+                        const rect = el.getBoundingClientRect();
+                        const absBottom = rect.bottom + window.scrollY;
+                        window.scrollTo({ top: absBottom + extra, behavior: 'instant' });
+                        return true;
+                    }
+                    """, overshoot_px)
+                    return
+                except Exception:
+                    pass
+
+                # 2) fallback cuối: lăn chuột
+                try:
+                    await page.mouse.wheel(0, overshoot_px)
+                except Exception:
+                    # fallback nữa: trang xuống 1 phát lớn
+                    await page.evaluate("(y)=>window.scrollBy(0,y)", overshoot_px)
+
+            # --- trong vòng lặp của bạn ---
+            vp = context.page.viewport_size or {"height": 800}
+            half_screen   = max(200, int(vp["height"] * 0.5))
+            overshoot_px  = max(400, int(vp["height"] * 0.75))  # vượt ~3/4 màn hình
+
             boundary_index = min(MAX_COMMENTS, new_count) - 1
             if boundary_index >= 0:
                 try:
                     last = comments_loc.nth(boundary_index)
-                    if await last.is_visible():
-                        await last.scroll_into_view_if_needed(timeout=500)
-                    else:
-                        await context.page.mouse.wheel(0, half_screen)
+                    await _scroll_past(context.page, last, overshoot_px=overshoot_px)
                 except Exception:
-                    await context.page.mouse.wheel(0, half_screen)
+                    await context.page.mouse.wheel(0, overshoot_px)
             else:
-                await context.page.mouse.wheel(0, half_screen)
+                await context.page.mouse.wheel(0, overshoot_px)
 
             await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
+
+            # mẹo nhỏ: nếu vẫn không tăng count, thử overshoot “mạnh” 1 lần trước khi tăng retries
+            if (await comments_loc.count()) == new_count:
+                try:
+                    if boundary_index >= 0:
+                        last = comments_loc.nth(boundary_index)
+                        await _scroll_past(context.page, last, overshoot_px=vp["height"] * 2)  # mạnh tay
+                        await context.page.wait_for_timeout(int(SCROLL_PAUSE_MS * 1.2))
+                except Exception:
+                    pass
+
 
         import re
 
