@@ -8,6 +8,76 @@ from crawlee.crawlers import PlaywrightCrawlingContext
 from crawlee.router import Router
 from datetime import datetime, timezone
 import pytz
+# ========== Thêm ở đầu file ==========
+CAPTCHA_MODAL_SEL = '#captcha-verify-container-main-page'
+CAPTCHA_CLOSE_BTN = '#captcha_close_button'
+CAPTCHA_REFRESH_BTN = '#captcha_refresh_button'
+CAPTCHA_SWITCH_BTN = '#captcha_switch_button'  # (Audio)
+
+class CaptchaDetected(RuntimeError):
+    """Ném lỗi này để Crawler tự retry request hiện tại."""
+
+async def _dismiss_captcha(page, logger, wait_ms: int = 1200) -> bool:
+    """
+    Cố gắng đóng CAPTCHA nếu có: Close -> Refresh -> Switch 'Audio'.
+    Trả về True nếu CAPTCHA biến mất; False nếu vẫn còn.
+    """
+    try:
+        modal = page.locator(CAPTCHA_MODAL_SEL)
+        if await modal.count() == 0:
+            return True  # không có captcha
+        if await modal.first.is_visible():
+            logger.info("CAPTCHA detected -> trying to dismiss...")
+
+            # 1) thử Close
+            try:
+                close_btn = page.locator(CAPTCHA_CLOSE_BTN).first
+                if await close_btn.count() and await close_btn.is_visible():
+                    await close_btn.click(timeout=1500)
+                    await page.wait_for_timeout(wait_ms)
+            except Exception:
+                pass
+
+            # check lại
+            if await modal.first.is_visible():
+                # 2) thử Refresh
+                try:
+                    refresh_btn = page.locator(CAPTCHA_REFRESH_BTN).first
+                    if await refresh_btn.count() and await refresh_btn.is_visible():
+                        await refresh_btn.click(timeout=1500)
+                        await page.wait_for_timeout(wait_ms)
+                except Exception:
+                    pass
+
+            # check lại
+            if await modal.first.is_visible():
+                # 3) thử switch Audio (đôi khi dễ hơn)
+                try:
+                    switch_btn = page.locator(CAPTCHA_SWITCH_BTN).first
+                    if await switch_btn.count() and await switch_btn.is_visible():
+                        await switch_btn.click(timeout=1500)
+                        await page.wait_for_timeout(wait_ms)
+                except Exception:
+                    pass
+
+            # lần cuối kiểm tra
+            if await modal.first.is_visible():
+                logger.warning("CAPTCHA still visible after attempts.")
+                return False
+
+        return True
+    except Exception:
+        # nếu có lỗi bất ngờ, coi như chưa xử được
+        return False
+
+async def _guard_captcha_or_retry(page, logger):
+    """
+    Gọi ở MỖI BƯỚC QUAN TRỌNG.
+    Nếu không bỏ được CAPTCHA -> ném CaptchaDetected để framework retry.
+    """
+    ok = await _dismiss_captcha(page, logger)
+    if not ok:
+        raise CaptchaDetected("CAPTCHA_DETECTED_RETRY")
 
 def convert_timestamp_to_vn_time(timestamp: int) -> str:
     # Khởi tạo timezone
@@ -181,7 +251,6 @@ SCROLL_PAUSE_MS = 1000
 @router.handler(label='video')
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.user_data.get('url') or context.request.url
-    get_comments = context.request.user_data.get('get_comments')
     max_comments = context.request.user_data.get('max_comments', MAX_COMMENTS)
     context.log.info(f'Start video crawl: {url}')
     await context.page.wait_for_load_state("networkidle", timeout=30000)
@@ -189,6 +258,8 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
     elem = await context.page.query_selector('#__UNIVERSAL_DATA_FOR_REHYDRATION__')
     if not elem:
         raise RuntimeError('No JSON data element found on video page')
+    
+    await _guard_captcha_or_retry(context.page, context.log)
     
     raw = await elem.text_content()
     data_json = json.loads(raw)
@@ -225,8 +296,10 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         await skip_btn.click(timeout=1500)
     except Exception:
         pass
-
+    await _guard_captcha_or_retry(context.page, context.log)
+    
     num_comments = item_struct['stats']['commentCount']
+    
     if num_comments > 0:
         seen = set()
         # await context.page.wait_for_timeout(20000)
@@ -243,13 +316,13 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             "div.css-1ey35vz-5e6d46e3--DivViewRepliesContainer.e1cx7wx92 "
             "span:has-text('View')"
         )
-
+        
+        await _guard_captcha_or_retry(context.page, context.log)
         # Yêu cầu: MAX_COMMENTS, SCROLL_PAUSE_MS đã khai báo
         await context.page.wait_for_selector(COMMENT_SEL, timeout=3000)
         comments_loc = context.page.locator(COMMENT_SEL)
 
         vp = context.page.viewport_size or {"height": 800}
-        half_screen = max(200, int(vp["height"] * 0.5))
 
         previous = 0
         retries = 0
@@ -267,6 +340,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             limit = min(top_n, n_wrappers)
 
             for i in range(limit):
+                await _guard_captcha_or_retry(context.page, context.log)
                 wrap = wrappers_loc.nth(i)
                 # click tối đa per_wrapper_click_limit lần / wrapper để tránh kẹt
                 clicks = 0
@@ -279,7 +353,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                     btn = btns.first
                     if await btn.is_visible():
                         try:
-                            await btn.scroll_into_view_if_needed(timeout=1500)
+                            await btn.scroll_into_view_if_needed(timeout=500)
                         except Exception:
                             pass
                         try:
@@ -287,7 +361,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                             changed = True
                             clicks += 1
                             # cho UI cập nhật
-                            await page.wait_for_timeout(2000)
+                            await page.wait_for_timeout(1000)
                         except Exception:
                             # nếu click fail, thoát vòng while để tránh kẹt
                             break
@@ -301,14 +375,16 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             return changed, any_left
 
         while True:
+            await _guard_captcha_or_retry(context.page, context.log)
+                        # Mở các nút "Xem..." CHỈ trong top N = max_comments
+            changed, any_left_in_top_n = await expand_view_more_in_top_n(
+                context.page, comments_loc, max_comments, per_wrapper_click_limit=3
+            )
+
             count_all = await comments_loc.count()
             if count_all >= max_comments:
                 break
 
-            # Mở các nút "Xem..." CHỈ trong top N = max_comments
-            changed, any_left_in_top_n = await expand_view_more_in_top_n(
-                context.page, comments_loc, max_comments, per_wrapper_click_limit=3
-            )
 
             # Đợi lazy-load
             await context.page.wait_for_timeout(SCROLL_PAUSE_MS)
@@ -396,7 +472,6 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                 except Exception:
                     pass
 
-
         import re
 
         COMMENT_WRAPPER_SEL = 'div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169'
@@ -408,10 +483,10 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         LIKE_COUNT_INNER   = 'span.TUXText'
 
         def _parse_int(text: str) -> int:
+            import re
             t = (text or "").strip()
             m = re.search(r'([\d\.,]+)\s*([kKmM]?)', t)
-            if not m:
-                return 0
+            if not m: return 0
             num, unit = m.group(1), m.group(2).lower()
             num = num.replace('.', '').replace(',', '')
             if not num.isdigit():
@@ -422,93 +497,84 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             elif unit == 'm': val *= 1_000_000
             return val
 
-        async def _get_like_count(scope_el):
+        async def _get_like_from(scope_el) -> int:
             try:
                 like_box = await scope_el.query_selector(LIKE_CONTAINER_SEL)
                 if like_box:
                     span_num = await like_box.query_selector(LIKE_COUNT_INNER)
                     if span_num:
-                        txt = (await span_num.inner_text()).strip()
-                        return _parse_int(txt)
+                        return _parse_int((await span_num.inner_text()) or "")
             except Exception:
                 pass
             return 0
 
         # Thu thập threads (cmt lvl-1 + replies) + user href + likes
         comment_divs = await context.page.query_selector_all(COMMENT_WRAPPER_SEL)
-
         threads = []
         seen = set()
 
-        for node in comment_divs:
-            # ===== Level-1 (parent) =====
-            lv1_text_el = await node.query_selector(LV1_TEXT_SEL)
+        for wrap in comment_divs:
+            # ===== LV1 trong wrapper =====
+            lv1_text_el = await wrap.query_selector(LV1_TEXT_SEL)
             if not lv1_text_el:
-                continue  # không có comment cha thì bỏ qua
-
+                continue
             lv1_text = (await lv1_text_el.inner_text() or "").strip()
             if not lv1_text:
                 continue
 
-            # Ancestor item wrapper của chính cmt_1 (để scope user/likes đúng)
-            try:
-                lv1_item = await lv1_text_el.query_selector(
-                    'xpath=ancestor::div[contains(@class,"DivCommentItemWrapper")]'
-                )
-            except Exception:
-                lv1_item = None
-
-            # User + href cho cmt_1
+            u1 = await wrap.query_selector(LV1_USER_SEL)
             lv1_user = {"name": "", "href": ""}
-            if lv1_item:
-                u1 = await lv1_item.query_selector(LV1_USER_SEL)
-                if u1:
-                    try:
-                        lv1_user["href"] = await u1.get_attribute("href") or ""
-                        lv1_user["name"] = (await u1.inner_text() or "").strip()
-                    except Exception:
-                        pass
+            if u1:
+                try:
+                    lv1_user["href"] = await u1.get_attribute("href") or ""
+                    lv1_user["name"] = (await u1.inner_text() or "").strip()
+                except Exception:
+                    pass
 
-            # Likes cho cmt_1 (scope theo lv1_item để không lẫn với like của reply)
-            lv1_likes = await _get_like_count(lv1_item or node)
+            lv1_likes = await _get_like_from(wrap)  # like của item cha (scope ngay trong wrapper)
 
             thread = {
                 "cmt_1": {
-                    "user": lv1_user,     # {"name": "...", "href": "/@handle"}
-                    "text": lv1_text,     # nội dung comment level-1
-                    "likes": lv1_likes,   # số lượt thích (int)
-                    "replies": []         # danh sách cmt_2
+                    "user": lv1_user,
+                    "text": lv1_text,
+                    "likes": lv1_likes,
+                    "replies": []
                 }
             }
 
-            # ===== Level-2 (replies) =====
-            reply_spans = await node.query_selector_all(LV2_TEXT_SEL)
-            for rs in reply_spans:
+            # ===== LV2 trong wrapper (không dùng ancestor) =====
+            reply_text_nodes = await wrap.query_selector_all(LV2_TEXT_SEL)
+            reply_user_nodes = await wrap.query_selector_all(LV2_USER_SEL)
+            print(f"Found {len(reply_text_nodes)} replies under this comment")
+            
+            # Đồng bộ theo index: tên/href thường align với text theo thứ tự DOM
+            for i, rs in enumerate(reply_text_nodes):
                 t = (await rs.inner_text() or "").strip()
                 if not t:
                     continue
 
-                # Ancestor item wrapper của chính reply
-                try:
-                    anc = await rs.query_selector('xpath=ancestor::div[contains(@class,"DivCommentItemWrapper")]')
-                except Exception:
-                    anc = None
-
                 user = {"name": "", "href": ""}
-                if anc:
-                    u2 = await anc.query_selector(LV2_USER_SEL)
-                    if u2:
-                        try:
-                            user["href"] = await u2.get_attribute("href") or ""
-                            user["name"] = (await u2.inner_text() or "").strip()
-                        except Exception:
-                            pass
-                    likes = await _get_like_count(anc)
-                else:
-                    likes = 0
+                if i < len(reply_user_nodes) and reply_user_nodes[i]:
+                    try:
+                        user["href"] = await reply_user_nodes[i].get_attribute("href") or ""
+                        user["name"] = (await reply_user_nodes[i].inner_text() or "").strip()
+                    except Exception:
+                        pass
+
+                # Like cho từng reply: lấy like container gần nhất *bên trong wrapper*,
+                # ưu tiên node cha gần reply bằng evaluate(closest) để vẫn giữ scope tương đối.
+                likes = 0
+                try:
+                    anc = await rs.evaluate_handle(
+                        """el => el.closest('div')""")  # đủ dùng: wrapper item nhỏ nhất chứa reply
+                    if anc:
+                        # Tìm like container bắt đầu từ anc, fallback: wrap
+                        likes = await _get_like_from(anc) or await _get_like_from(wrap)
+                except Exception:
+                    likes = await _get_like_from(wrap)
 
                 thread["cmt_1"]["replies"].append({
-                    "user":  user,   # {"name": "...", "href": "/@handle"}
+                    "user":  user,
                     "text":  t,
                     "likes": likes
                 })
@@ -524,6 +590,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                 threads.append(thread)
 
         item['comments_content'] = threads[:max_comments]
+
         context.log.info(f'Collected {len(item["comments_content"])} threads')
 
 
