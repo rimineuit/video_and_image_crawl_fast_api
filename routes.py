@@ -353,7 +353,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                     btn = btns.first
                     if await btn.is_visible():
                         try:
-                            await btn.scroll_into_view_if_needed(timeout=500)
+                            await btn.scroll_into_view_if_needed(timeout=1500)
                         except Exception:
                             pass
                         try:
@@ -361,7 +361,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                             changed = True
                             clicks += 1
                             # cho UI cập nhật
-                            await page.wait_for_timeout(1000)
+                            await page.wait_for_timeout(2000)
                         except Exception:
                             # nếu click fail, thoát vòng while để tránh kẹt
                             break
@@ -378,7 +378,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             await _guard_captcha_or_retry(context.page, context.log)
                         # Mở các nút "Xem..." CHỈ trong top N = max_comments
             changed, any_left_in_top_n = await expand_view_more_in_top_n(
-                context.page, comments_loc, max_comments, per_wrapper_click_limit=3
+                context.page, comments_loc, max_comments, per_wrapper_click_limit=10
             )
 
             count_all = await comments_loc.count()
