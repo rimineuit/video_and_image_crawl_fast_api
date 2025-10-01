@@ -182,7 +182,7 @@ SCROLL_PAUSE_MS = 1000
 async def video_handler(context: PlaywrightCrawlingContext) -> None:
     url = context.request.user_data.get('url') or context.request.url
     get_comments = context.request.user_data.get('get_comments')
-    
+    max_comments = context.request.user_data.get('max_comments', MAX_COMMENTS)
     context.log.info(f'Start video crawl: {url}')
     await context.page.wait_for_load_state("networkidle", timeout=30000)
     # Lấy dữ liệu JSON từ trang
@@ -302,12 +302,12 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
 
         while True:
             count_all = await comments_loc.count()
-            if count_all >= MAX_COMMENTS:
+            if count_all >= max_comments:
                 break
 
-            # Mở các nút "Xem..." CHỈ trong top N = MAX_COMMENTS
+            # Mở các nút "Xem..." CHỈ trong top N = max_comments
             changed, any_left_in_top_n = await expand_view_more_in_top_n(
-                context.page, comments_loc, MAX_COMMENTS, per_wrapper_click_limit=3
+                context.page, comments_loc, max_comments, per_wrapper_click_limit=3
             )
 
             # Đợi lazy-load
@@ -321,9 +321,9 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                 previous = new_count
 
             # Điều kiện dừng theo đúng yêu cầu:
-            # - đủ MAX_COMMENTS, hoặc
+            # - đủ max_comments, hoặc
             # - retries > 2 và KHÔNG còn nút Xem trong top N wrappers
-            if new_count >= MAX_COMMENTS or (retries > 2 and not any_left_in_top_n):
+            if new_count >= max_comments or (retries > 2 and not any_left_in_top_n):
                 break
 
             # --- helper: kéo VƯỢT QUA target ---
@@ -374,7 +374,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             half_screen   = max(200, int(vp["height"] * 0.5))
             overshoot_px  = max(400, int(vp["height"] * 0.75))  # vượt ~3/4 màn hình
 
-            boundary_index = min(MAX_COMMENTS, new_count) - 1
+            boundary_index = min(max_comments, new_count) - 1
             if boundary_index >= 0:
                 try:
                     last = comments_loc.nth(boundary_index)
@@ -523,7 +523,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                 seen.add(key)
                 threads.append(thread)
 
-        item['comments_content'] = threads[:MAX_COMMENTS]
+        item['comments_content'] = threads[:max_comments]
         context.log.info(f'Collected {len(item["comments_content"])} threads')
 
 
