@@ -382,8 +382,6 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             )
 
             count_all = await comments_loc.count()
-            if count_all >= max_comments:
-                break
 
 
             # Đợi lazy-load
@@ -399,7 +397,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             # Điều kiện dừng theo đúng yêu cầu:
             # - đủ max_comments, hoặc
             # - retries > 2 và KHÔNG còn nút Xem trong top N wrappers
-            if new_count >= max_comments or (retries > 2 and not any_left_in_top_n):
+            if new_count >= max_comments and (retries > 2 and not any_left_in_top_n):
                 break
 
             # --- helper: kéo VƯỢT QUA target ---
