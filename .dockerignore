@@ -12,3 +12,4 @@ venv/
 *.jpg
 *.png
 storage
+__pycache__
