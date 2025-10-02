@@ -8,76 +8,36 @@ from crawlee.crawlers import PlaywrightCrawlingContext
 from crawlee.router import Router
 from datetime import datetime, timezone
 import pytz
-# ========== Thêm ở đầu file ==========
-CAPTCHA_MODAL_SEL = '#captcha-verify-container-main-page'
-CAPTCHA_CLOSE_BTN = '#captcha_close_button'
-CAPTCHA_REFRESH_BTN = '#captcha_refresh_button'
-CAPTCHA_SWITCH_BTN = '#captcha_switch_button'  # (Audio)
-
 class CaptchaDetected(RuntimeError):
-    """Ném lỗi này để Crawler tự retry request hiện tại."""
+    pass
 
-async def _dismiss_captcha(page, logger, wait_ms: int = 1200) -> bool:
-    """
-    Cố gắng đóng CAPTCHA nếu có: Close -> Refresh -> Switch 'Audio'.
-    Trả về True nếu CAPTCHA biến mất; False nếu vẫn còn.
-    """
+async def _force_retry(context: PlaywrightCrawlingContext, reason: str = "CAPTCHA_DETECTED") -> None:
+    # Báo cho Crawlee đánh dấu request này fail và xếp lịch retry (nếu còn slot)
+    try:
+        await context.request.retry(reason)  # Crawlee Python: trả về True/False tùy còn slot
+    except Exception:
+        # Một số phiên bản Crawlee có thể không có .retry(); nếu vậy chỉ cần raise để framework xử lý.
+        pass
+    # Quan trọng: dừng handler ngay lập tức bằng cách raise, để lỗi bubble ra ngoài
+    raise CaptchaDetected(reason)
+CAPTCHA_MODAL_SEL = '#captcha-verify-container-main-page'
+
+async def _guard_captcha_or_retry(context: PlaywrightCrawlingContext):
+    page = context.page
+    logger = context.log
     try:
         modal = page.locator(CAPTCHA_MODAL_SEL)
-        if await modal.count() == 0:
-            return True  # không có captcha
-        if await modal.first.is_visible():
-            logger.info("CAPTCHA detected -> trying to dismiss...")
-
-            # 1) thử Close
-            try:
-                close_btn = page.locator(CAPTCHA_CLOSE_BTN).first
-                if await close_btn.count() and await close_btn.is_visible():
-                    await close_btn.click(timeout=1500)
-                    await page.wait_for_timeout(wait_ms)
-            except Exception:
-                pass
-
-            # check lại
-            if await modal.first.is_visible():
-                # 2) thử Refresh
-                try:
-                    refresh_btn = page.locator(CAPTCHA_REFRESH_BTN).first
-                    if await refresh_btn.count() and await refresh_btn.is_visible():
-                        await refresh_btn.click(timeout=1500)
-                        await page.wait_for_timeout(wait_ms)
-                except Exception:
-                    pass
-
-            # check lại
-            if await modal.first.is_visible():
-                # 3) thử switch Audio (đôi khi dễ hơn)
-                try:
-                    switch_btn = page.locator(CAPTCHA_SWITCH_BTN).first
-                    if await switch_btn.count() and await switch_btn.is_visible():
-                        await switch_btn.click(timeout=1500)
-                        await page.wait_for_timeout(wait_ms)
-                except Exception:
-                    pass
-
-            # lần cuối kiểm tra
-            if await modal.first.is_visible():
-                logger.warning("CAPTCHA still visible after attempts.")
-                return False
-
-        return True
+        if await modal.count() > 0 and await modal.first.is_visible():
+            logger.warning("CAPTCHA detected! Forcing retry...")
+            await _force_retry(context, "CAPTCHA_DETECTED")
+    except CaptchaDetected:
+        # Cho lỗi đi xuyên (không nuốt)
+        raise
     except Exception:
-        # nếu có lỗi bất ngờ, coi như chưa xử được
-        return False
+        # Nếu locator lỗi thì coi như không có captcha
+        return
 
-async def _guard_captcha_or_retry(page, logger):
-    """
-    Gọi ở MỖI BƯỚC QUAN TRỌNG.
-    Nếu không bỏ được CAPTCHA -> ném CaptchaDetected để framework retry.
-    """
-    ok = await _dismiss_captcha(page, logger)
-    if not ok:
-        raise CaptchaDetected("CAPTCHA_DETECTED_RETRY")
+
 
 def convert_timestamp_to_vn_time(timestamp: int) -> str:
     # Khởi tạo timezone
@@ -259,7 +219,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
     if not elem:
         raise RuntimeError('No JSON data element found on video page')
     
-    await _guard_captcha_or_retry(context.page, context.log)
+    await _guard_captcha_or_retry(context)
     
     raw = await elem.text_content()
     data_json = json.loads(raw)
@@ -296,7 +256,18 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         await skip_btn.click(timeout=1500)
     except Exception:
         pass
-    await _guard_captcha_or_retry(context.page, context.log)
+    
+    try:
+        close_btn = context.page.locator("div.css-1gr7yah-5e6d46e3--DivCloseButtonWrapper").first
+        # Đợi tối đa 5s cho đến khi nút hiển thị
+        await close_btn.wait_for(timeout=5000)
+        await close_btn.click(timeout=1500)
+        context.log.info("Clicked close button (captcha/overlay).")
+    except Exception:
+        # Không tìm thấy hoặc không click được thì bỏ qua
+        pass
+
+    await _guard_captcha_or_retry(context)
     
     num_comments = item_struct['stats']['commentCount']
     
@@ -305,7 +276,6 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
         # await context.page.wait_for_timeout(20000)
         previous = 0
         retries = 0
-        count_all = await context.page.locator("div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169").count()
         locator = context.page.locator("div.css-zjz0t7-5e6d46e3--DivCommentObjectWrapper.e16z10169").first  # <-- bỏ await
         await locator.scroll_into_view_if_needed(timeout=3000)
 
@@ -317,7 +287,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             "span:has-text('View')"
         )
         
-        await _guard_captcha_or_retry(context.page, context.log)
+        await _guard_captcha_or_retry(context)
         # Yêu cầu: MAX_COMMENTS, SCROLL_PAUSE_MS đã khai báo
         await context.page.wait_for_selector(COMMENT_SEL, timeout=3000)
         comments_loc = context.page.locator(COMMENT_SEL)
@@ -340,7 +310,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             limit = min(top_n, n_wrappers)
 
             for i in range(limit):
-                await _guard_captcha_or_retry(context.page, context.log)
+                await _guard_captcha_or_retry(context)
                 wrap = wrappers_loc.nth(i)
                 # click tối đa per_wrapper_click_limit lần / wrapper để tránh kẹt
                 clicks = 0
@@ -357,6 +327,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
                         except Exception:
                             pass
                         try:
+                            await page.wait_for_timeout(2000)
                             await btn.click(timeout=2000)
                             changed = True
                             clicks += 1
@@ -375,7 +346,7 @@ async def video_handler(context: PlaywrightCrawlingContext) -> None:
             return changed, any_left
 
         while True:
-            await _guard_captcha_or_retry(context.page, context.log)
+            await _guard_captcha_or_retry(context)
                         # Mở các nút "Xem..." CHỈ trong top N = max_comments
             changed, any_left_in_top_n = await expand_view_more_in_top_n(
                 context.page, comments_loc, max_comments, per_wrapper_click_limit=10

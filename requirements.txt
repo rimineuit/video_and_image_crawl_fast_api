@@ -26,3 +26,5 @@ gdown
 google-genai
 moviepy
 natsort
+loguru
+Requests==2.31.0

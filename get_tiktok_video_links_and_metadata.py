@@ -28,15 +28,11 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
         headless=True,
         max_requests_per_crawl=50,
         request_handler_timeout=timedelta(seconds=1500),
-        browser_type=browser_type,  # 'chromium' | 'firefox' | 'webkit'
-        browser_launch_options={
-            "args": ["--no-sandbox"]
-        },
+        browser_type=browser_type,
         browser_new_context_options={
-            "permissions": [],
-            "viewport": {"width": 1080, "height": 720},
         }
     )
+
     
     # Run the crawler to collect data from several user pages
     await crawler.run(
