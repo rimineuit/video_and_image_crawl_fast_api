@@ -9,3 +9,4 @@ script
 *.mp4downloads/
 *.webm
 *.mp4
+__pycache__/

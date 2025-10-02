@@ -879,7 +879,7 @@ def get_batch_job_content_gemini(body: GetBatchJobContentGemini):
 class GetCommentTikTok(BaseModel):
     id: str
     
-from .tiktok_comment_scrapper import get_comments
+from tiktok_comment_scrapper import get_comments
 
 @app.post("/tiktok/get_comments_v2")
 def get_comments_v2(body: GetCommentTikTok):
