@@ -1,18 +1,37 @@
-import os
-import json
-def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
-    data_list = []
+# pip install pydub
+# Cần cài ffmpeg và có trong PATH (Windows/Mac/Linux)
 
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".json") and filename != "__metadata__.json":
-            file_path = os.path.join(folder_path, filename)
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    data_list.append(data)
-            except Exception as e:
-                print(f"Lỗi khi đọc file {filename}: {e}")
+from pydub import AudioSegment
+from pathlib import Path
 
-    return data_list
+def mp3_to_wav(
+    mp3_path: str,
+    wav_path: str | None = None,
+    sample_rate: int = 16000,
+    mono: bool = True,
+    normalize: bool = False,
+):
+    mp3_path = Path(mp3_path)
+    if wav_path is None:
+        wav_path = mp3_path.with_suffix(".wav")
+    else:
+        wav_path = Path(wav_path)
 
-print(json.dumps(load_all_json_data(), ensure_ascii=False, indent=2))
+    audio = AudioSegment.from_file(mp3_path, format="mp3")
+
+    if mono:
+        audio = audio.set_channels(1)
+    # WAV 16-bit PCM
+    audio = audio.set_frame_rate(sample_rate).set_sample_width(2)
+
+    if normalize:
+        # chuẩn hoá mức âm (đưa peak về -1 dBFS)
+        change = -1.0 - audio.max_dBFS
+        audio = audio.apply_gain(change)
+
+    audio.export(wav_path, format="wav")
+    return str(wav_path)
+
+# Ví dụ:
+out = mp3_to_wav("phongthuymusic.mp3", sample_rate=16000, mono=True)
+print(out)

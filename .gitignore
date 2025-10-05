@@ -11,3 +11,4 @@ script
 *.mp4
 __pycache__/
 __pycache__
+!assets/keep/phongthuymusic.mp3
