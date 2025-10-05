@@ -1,69 +1,38 @@
 
 # Down load image
 import os
-import gdown
+import wave
+import contextlib
+from natsort import natsorted
+from moviepy import AudioFileClip, TextClip, ColorClip, ImageClip, CompositeVideoClip, vfx, afx
 
-def download_folder_and_rename(id: str, img_dir='./image'):
-    gdown.download_folder(id=id)
-    def rename_file_in_folder(img_dir=img_dir):
-        for f in os.listdir(img_dir):
-            os.rename(os.path.join(img_dir, f), os.path.join(img_dir, f"{f}.png"))
-    
-    rename_file_in_folder(img_dir)
-    
-    
-# Lưu scripts
-def save_scripts_to_folder(scripts: list[str], output_folder='./script'):
-    os.mkdir(output_folder)
-    for i, s in enumerate(scripts):
-        # Tạo và ghi vào file 
+# Lưu transcripts
+def save_transcripts_to_folder(transcripts: list[str], output_folder='./script'):
+    os.makedirs(output_folder, exist_ok=True)
+    for i, s in enumerate(transcripts):
         file_path = os.path.join(output_folder, f"{i+1}.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(s)
 
-# Convert script to audio
-from google import genai
-from google.genai import types
-import wave
-from typing import List
-from moviepy import *
-import numpy as np
-import contextlib
-from natsort import natsorted
 
-def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
-   with wave.open(filename, "wb") as wf:
-      wf.setnchannels(channels)
-      wf.setsampwidth(sample_width)
-      wf.setframerate(rate)
-      wf.writeframes(pcm)
+# Download wav files from URLs
+import requests
+def download_wavs_from_urls(wav_urls, audio_dir='./audio'):
+    os.makedirs(audio_dir, exist_ok=True)
+    for i, url in enumerate(wav_urls):
+        file_name = os.path.join(audio_dir, f"{i+1}.wav")
+        r = requests.get(url)
+        with open(file_name, 'wb') as f:
+            f.write(r.content)
 
-def make_audio_from_script(script_dir='./script', api_key='AIzaSyAUeYtTRNafF4geV_eoO7JimqkLCcHhokU', voice_name='Sulafat', audio_dir='./audio'):
-    os.mkdir(audio_dir)
-    for f in natsorted(os.listdir(script_dir)):
-        with open(os.path.join(script_dir, f), 'r', encoding='utf-8') as file:
-            script = file.read()
-        
-        prompt = f"""TTS this script:{script}"""
-        client = genai.Client(api_key=api_key)
-
-        response = client.models.generate_content(
-        model="gemini-2.5-flash-preview-tts",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                    voice_name=voice_name,
-                    )
-                )
-            ),
-        )
-        )
-        data = response.candidates[0].content.parts[0].inline_data.data
-        file_name=f'{f[:-4]}.wav'
-        wave_file(os.path.join(audio_dir, file_name), data) # Saves the file to current directory
+# Download images from URLs
+def download_images_from_urls(image_urls, image_dir='./image'):
+    os.makedirs(image_dir, exist_ok=True)
+    for i, url in enumerate(image_urls):
+        file_name = os.path.join(image_dir, f"{i+1}.png")
+        r = requests.get(url)
+        with open(file_name, 'wb') as f:
+            f.write(r.content)
     
 # Tạo video
 
@@ -181,29 +150,25 @@ def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./ima
     if os.path.exists(image_dir) and os.path.isdir(image_dir):
         shutil.rmtree(image_dir)
 
-def main(id_folder, list_scripts):
+
+def main(transcripts, wav_urls, image_urls, fps=30, show_script=False):
     delete_resource()
-    download_folder_and_rename(id_folder)
-    save_scripts_to_folder(list_scripts)
-    make_audio_from_script()
-    make_video(fps=30)
+    save_transcripts_to_folder(transcripts)
+    download_wavs_from_urls(wav_urls)
+    download_images_from_urls(image_urls)
+    make_video(fps=fps, show_script=show_script)
     
-import json
-import sys
 if __name__ == "__main__":
-    # id = '1Cpb31dJSmGcrCnt7hdz3HW4wxFJvw2uS'
-    # list_scripts = ['Xin chào các bạn! Hôm nay chúng ta sẽ khám phá về Ngũ Hành, nền tảng của phong thủy phương Đông. Đó là Kim, Mộc, Thủy, Hỏa, Thổ',
-    #                 'Hành Kim tượng trưng cho kim loại, mang tính chất thu lại, đại diện cho sự sắc bén, mạnh mẽ và công lý.',
-    #                 'Hành Mộc là cây cối, biểu thị sự sinh trưởng, khởi đầu mới, năng động và dẻo dai.',
-    #                 'Hành Thủy là nước, tượng trưng cho sự uyển chuyển, linh hoạt, tàng chứa và dòng chảy không ngừng.',
-    #                 'Hành Hỏa đại diện cho lửa, sức mạnh, nhiệt huyết và sự bùng cháy đam mê, mang lại ánh sáng.',
-    #                 'Cuối cùng, Hành Thổ là đất, tượng trưng cho sự ổn định, nuôi dưỡng và là nền tảng vững chắc cho vạn vật.',
-    #                 'Ngũ Hành có quy luật Tương Sinh: Mộc sinh Hỏa, Hỏa sinh Thổ, Thổ sinh Kim, Kim sinh Thủy, Thủy sinh Mộc. Tức là các hành hỗ trợ nhau phát triển.',
-    #                 'Và quy luật Tương Khắc: Kim khắc Mộc, Mộc khắc Thổ, Thổ khắc Thủy, Thủy khắc Hỏa, Hỏa khắc Kim. Các hành này chế ngự lẫn nhau để duy trì cân bằng.',
-    #                 'Việc hiểu Ngũ Hành giúp ta cân bằng năng lượng, ứng dụng vào màu sắc, hướng nhà để thu hút tài lộc, may mắn.',
-    #                 'Hãy áp dụng phong thủy Ngũ Hành để kiến tạo không gian sống hài hòa, bình an và phát triển toàn diện nhé!']
-    id = sys.argv[1]
-    fps = int(sys.argv[2])
-    show_Script = False
-    list_scripts = json.loads(sys.argv[4])
-    main(id_folder=id, list_scripts=list_scripts)
+    import sys
+    import json
+    if len(sys.argv) < 6:
+        print("Usage: python make_video_from_image.py <transcripts_json> <wav_urls_json> <image_urls_json> <fps> <show_script>")
+        sys.exit(1)
+
+    transcripts = json.loads(sys.argv[1])
+    wav_urls = json.loads(sys.argv[2])
+    image_urls = json.loads(sys.argv[3])
+    fps = int(sys.argv[4])
+    show_script = sys.argv[5].lower() in ("true", "1", "yes")
+
+    main(transcripts, wav_urls, image_urls, fps=fps, show_script=show_script)

@@ -808,10 +808,13 @@ def generate_poster(body: PosterRequest):
     
     
 class MakeVideoRequest(BaseModel):
-    scripts: List[str]
-    fps: str
-    show_script: str
-    id_folder: str
+    transcripts: List[str]
+    wav_urls: List[str]
+    image_urls: List[str]
+    fps: int = 30
+    show_script: bool = False
+    
+    
 import shutil
 from fastapi import BackgroundTasks
 def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./image'):
@@ -820,26 +823,36 @@ def delete_resource(script_dir='./script', audio_dir='./audio', image_dir='./ima
     shutil.rmtree(image_dir)
 
 from fastapi.responses import FileResponse
+
 @app.post("/generate-video")
 def generate_video(body: MakeVideoRequest):
-    scripts = body.scripts
-    id_folder = body.id_folder
+    transcripts = body.transcripts
+    wav_urls = body.wav_urls
+    image_urls = body.image_urls
     show_script = body.show_script
     fps = body.fps
-    cmd = [sys.executable, "make_video_from_image.py", id_folder, fps, show_script , json.dumps(scripts, ensure_ascii=False)]
+    # Pass arguments as JSON strings to the script
+    cmd = [
+        sys.executable,
+        "make_video_from_image.py",
+        json.dumps(transcripts, ensure_ascii=False),
+        json.dumps(wav_urls, ensure_ascii=False),
+        json.dumps(image_urls, ensure_ascii=False),
+        str(fps),
+        str(show_script)
+    ]
     proc = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
-        timeout=900,
+        timeout=9000,
         env=env,
         encoding='utf-8'
     )
     if proc.returncode != 0:
         raise HTTPException(status_code=500, detail=f"Script error: {proc.stderr}")
-    
     video_path = './audio/my_video.mp4'
-    return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4", background=BackgroundTasks(lambda: delete_resource))
+    return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4")
     
     
 
