@@ -30,6 +30,7 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
         request_handler_timeout=timedelta(seconds=1500),
         browser_type=browser_type,
         browser_new_context_options={
+            "viewport": {"width": 1280, "height": 720}
         }
     )
 

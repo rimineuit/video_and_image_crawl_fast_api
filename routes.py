@@ -109,7 +109,14 @@ async def newest_handler(context: PlaywrightCrawlingContext) -> None:
     limit = context.request.user_data.get('limit', 10)
     if not isinstance(limit, int) or limit <= 0:
         raise ValueError('`limit` must be a positive integer')
-
+    await context.page.wait_for_load_state("networkidle", timeout=30000)
+    try:
+        skip_btn = await context.page.locator("div.TUXButton-label:has-text('Skip')").first
+        # Đợi tối đa 5s cho đến khi nút hiển thị
+        await skip_btn.wait_for(timeout=5000)
+        await skip_btn.click(timeout=1500)
+    except Exception:
+        pass
     # Đợi user-post hoặc nút load-more hiển thị
     await context.page.locator('[data-e2e="user-post-item"]').first.wait_for(timeout=3000)
 
