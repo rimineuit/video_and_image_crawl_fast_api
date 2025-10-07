@@ -119,7 +119,7 @@ async def image_upload(body: ImageBody):
 from typing import List
 
 
-def load_all_json_data(folder_path="storage/datasets/default") -> list[dict]:
+def load_all_json_data(folder_path="./storage/datasets/default") -> list[dict]:
     data_list = []
 
     for filename in os.listdir(folder_path):
