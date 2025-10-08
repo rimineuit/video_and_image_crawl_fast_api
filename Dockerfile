@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt /app/requirements.txt
 
 # Dùng cache mount (BuildKit) để tăng tốc pip (không làm phình image)
-RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip install --upgrade pip && \
     pip install -r requirements.txt
 
