@@ -1,17 +1,17 @@
 # Web scraping
-requests
+requests==2.31.0
 beautifulsoup4
 playwright
 
 # Async support
 asyncpg
 aiohttp
-asyncio
+# asyncio  ❌ bỏ vì là stdlib
 
 # Env + config
 python-dotenv
 
-# Optional (nếu dùng các tính năng nâng cao của crawl4ai)
+# Optional
 uvicorn
 fastapi
 yt-dlp
@@ -22,15 +22,14 @@ pandas
 sqlalchemy
 psycopg2-binary
 
-# 🧠 CRAWLEE & Dependencies (đã fix lỗi Pydantic)
+# Crawlee & Pydantic (đã fix lỗi)
 crawlee[playwright]==1.0.1
-pydantic>=2.10,<3.0
+pydantic>=2.10,<3
 
 gdown
 google-genai
 moviepy
 natsort
 loguru
-Requests==2.31.0
 jmespath
 pydub
