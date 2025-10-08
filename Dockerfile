@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && pip install --upgrade pip \
  && pip install -r requirements.txt \
  && python -m playwright install --with-deps chromium \
+ && python -m pip install 'crawlee[all]' \
  && crawl4ai-setup \
  && crawl4ai-doctor \
  && apt-get purge -y build-essential pkg-config \
