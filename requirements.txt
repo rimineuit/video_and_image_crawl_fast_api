@@ -23,7 +23,8 @@ psycopg2-binary
 
 # Crawlee & Pydantic (đã fix lỗi)
 crawlee==1.0.1
-pydantic
+pydantic>=2.6,<2.9
+
 
 gdown
 google-genai
