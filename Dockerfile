@@ -28,9 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt /app/requirements.txt
 
 # Dùng cache mount (BuildKit) để tăng tốc pip (không làm phình image)
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
     pip install -r requirements.txt
+
 
 # --- Cài Chromium & deps của Playwright trong 1 lệnh ---
 # --with-deps sẽ đảm bảo các system deps đủ, nhưng ta đã cài phần lớn ở trên.
