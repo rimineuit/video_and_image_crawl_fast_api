@@ -1,7 +1,7 @@
 # Web scraping
 requests==2.31.0
 beautifulsoup4
-playwright
+playwright==1.47.2
 
 # Async support
 asyncpg
@@ -11,18 +11,18 @@ aiohttp
 python-dotenv
 
 # Optional
-uvicorn
+uvicorn[standard]  # tốt hơn uvicorn trần
 fastapi
 yt-dlp
-ffmpeg
+ffmpeg-python     # (tuỳ, nếu cần thao tác ffmpeg bằng Python)
 pytz
 crawl4ai
 pandas
 sqlalchemy
 psycopg2-binary
 
-# Crawlee & Pydantic (đã fix lỗi)
-crawlee==1.0.1
+# Crawlee & Pydantic
+crawlee[playwright]==1.0.1
 pydantic==2.11.0
 
 gdown

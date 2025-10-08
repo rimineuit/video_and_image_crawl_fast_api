@@ -1,9 +1,5 @@
 # main.py
-
 from datetime import timedelta
-import os
-import json
-from typing import List
 # /app/
 
 
@@ -19,7 +15,7 @@ async def crawl_links_tiktok(url: str, browser_type: str, label: str, max_items:
     concurrency_settings = ConcurrencySettings(
         max_concurrency=5,
         desired_concurrency=5,   # 👈 phải ≤ max_concurrency
-        # min_concurrency=1,     # (tuỳ chọn)
+        min_concurrency=1,     # (tuỳ chọn)
     )
 
     crawler = PlaywrightCrawler(
