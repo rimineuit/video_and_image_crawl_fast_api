@@ -1,5 +1,4 @@
 video_venv
-storage
 video
 .env
 dl.py
@@ -12,3 +11,4 @@ script
 __pycache__/
 __pycache__
 !assets/keep/phongthuymusic.mp3
+venv/

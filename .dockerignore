@@ -11,5 +11,4 @@ venv/
 *.mkv
 *.jpg
 *.png
-storage
 __pycache__
