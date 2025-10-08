@@ -6,7 +6,6 @@ playwright
 # Async support
 asyncpg
 aiohttp
-# asyncio  ❌ bỏ vì là stdlib
 
 # Env + config
 python-dotenv
@@ -23,8 +22,8 @@ sqlalchemy
 psycopg2-binary
 
 # Crawlee & Pydantic (đã fix lỗi)
-crawlee[playwright]==1.0.1
-pydantic>=2.10,<3
+crawlee==1.0.1
+pydantic
 
 gdown
 google-genai
