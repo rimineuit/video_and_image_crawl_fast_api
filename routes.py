@@ -34,7 +34,7 @@ async def _guard_captcha_or_retry(context: PlaywrightCrawlingContext):
         # Cho lỗi đi xuyên (không nuốt)
         raise
     except Exception:
-        # Nếu locator lỗi thì coi như không có captcha
+        # Nếu locator lỗi thì`` coi như không có captcha
         return
 
 

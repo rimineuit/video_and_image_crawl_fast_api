@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
+
 app = FastAPI()
 env = os.environ.copy()
 
@@ -185,6 +186,7 @@ async def tiktok_get_video_links_and_metadata(body: TikTokBody):
 
 class TikTokCrawlAdsRequest(BaseModel):
     limit: str = '10'
+    
 @app.post("/tiktok/crawl_ads")
 def crawl_ads(body: TikTokCrawlAdsRequest):
     limit = body.limit
@@ -500,6 +502,8 @@ def crawl_ads(body: TikTokCrawlAdsRequest):
 class TikTokCrawlCommentsRequest(BaseModel):
     url: str
     limit: int = 100
+    
+    
 @app.post("/tiktok/get_comments")
 def crawl_ads(body: TikTokCrawlCommentsRequest):
     limit = body.limit
@@ -549,6 +553,7 @@ def crawl_ads(body: TikTokCrawlCommentsRequest):
 class EasyCrawlRequest(BaseModel):
     url: str
     type_output: str = "html"
+    
 @app.post("/get_html")
 def crawl_easy(body: EasyCrawlRequest):
     url = body.url
@@ -853,8 +858,6 @@ def generate_video(body: MakeVideoRequest):
         raise HTTPException(status_code=500, detail=f"Script error: {proc.stderr}")
     video_path = './audio/my_video.mp4'
     return FileResponse(path=video_path, media_type="video/mp4", filename="video.mp4")
-    
-    
 
 class GetBatchJobContentGemini(BaseModel):
     job_name: str

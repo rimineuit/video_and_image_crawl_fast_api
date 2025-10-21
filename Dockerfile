@@ -44,9 +44,9 @@ RUN crawl4ai-setup && crawl4ai-doctor
 # Sao chép code sau cùng để giữ cache pip
 COPY . /app
 
-# Tạo user không phải root cho an toàn
-RUN useradd -m -u 10001 appuser && chown -R appuser:appuser /app
-USER appuser
+# # Tạo user không phải root cho an toàn
+# RUN useradd -m -u 10001 appuser && chown -R appuser:appuser /app
+# USER appuser
 
 ENV PORT=8000
 

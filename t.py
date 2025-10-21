@@ -1,37 +1,27 @@
-# pip install pydub
-# Cần cài ffmpeg và có trong PATH (Windows/Mac/Linux)
+import numpy as np
+from itertools import product
 
-from pydub import AudioSegment
-from pathlib import Path
+# Dữ liệu 9 tháng
+data = np.array([1200, 1250, 1100, 1300, 1220, 1310, 1400, 1370, 1420])
 
-def mp3_to_wav(
-    mp3_path: str,
-    wav_path: str | None = None,
-    sample_rate: int = 16000,
-    mono: bool = True,
-    normalize: bool = False,
-):
-    mp3_path = Path(mp3_path)
-    if wav_path is None:
-        wav_path = mp3_path.with_suffix(".wav")
-    else:
-        wav_path = Path(wav_path)
+# Hàm tính MSE cho bộ trọng số w
+def mse_for_weights(w, data):
+    preds = []
+    for t in range(3, len(data)):  # từ tháng 4 trở đi
+        y_hat = w[0]*data[t-3] + w[1]*data[t-2] + w[2]*data[t-1]
+        preds.append(y_hat)
+    return np.mean(abs(data[3:] - np.array(preds)))
 
-    audio = AudioSegment.from_file(mp3_path, format="mp3")
+# Lưới tìm kiếm (bước 0.05)
+best_w, best_mse = None, float('inf')
+for w1, w2 in product(np.arange(0, 1.00, 0.001), repeat=2):
+    w3 = 1 - w1 - w2
+    if w3 < 0:  # bỏ các tổ hợp không hợp lệ
+        continue
+    w = np.array([w1, w2, w3])
+    mse = mse_for_weights(w, data)
+    if mse < best_mse:
+        best_mse, best_w = mse, w
 
-    if mono:
-        audio = audio.set_channels(1)
-    # WAV 16-bit PCM
-    audio = audio.set_frame_rate(sample_rate).set_sample_width(2)
-
-    if normalize:
-        # chuẩn hoá mức âm (đưa peak về -1 dBFS)
-        change = -1.0 - audio.max_dBFS
-        audio = audio.apply_gain(change)
-
-    audio.export(wav_path, format="wav")
-    return str(wav_path)
-
-# Ví dụ:
-out = mp3_to_wav("phongthuymusic.mp3", sample_rate=16000, mono=True)
-print(out)
+print(f"Trọng số tối ưu: w1={best_w[0]:.2f}, w2={best_w[1]:.2f}, w3={best_w[2]:.2f}")
+print(f"→ MSE nhỏ nhất: {best_mse:.2f}")
